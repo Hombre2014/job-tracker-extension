@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Job Tracker Extension",
+  "version": "1.0.0",
+  "description": "Scrape job details and save them to your Job Tracker.",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://www.indeed.com/*"
+  ],
+  "icons": {
+    "16": "public/vite.svg",
+    "48": "public/vite.svg",
+    "128": "public/vite.svg"
+  }
+}
