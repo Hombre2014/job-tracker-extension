@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
+import { CompanyAutocomplete } from './components/CompanyAutocomplete'
+import { fetchBoards, fetchBoardColumns, type CompanySuggestion } from './lib/services'
+import { ChevronDown, Layout, Check, AlertCircle, RefreshCw, Zap, Edit3 } from 'lucide-react'
+import { cn } from './lib/utils'
 
 interface JobInfo {
   company: string
@@ -8,52 +12,218 @@ interface JobInfo {
   description?: string
   postUrl?: string
   salary?: string
+  companyData?: CompanySuggestion | null
+}
+
+interface Board {
+  id: string
+  name: string
+}
+
+interface Column {
+  id: string
+  name: string
 }
 
 function App() {
-  const [jobInfo, setJobInfo] = useState<JobInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [jobInfo, setJobInfo] = useState<JobInfo>({
+    company: '',
+    jobTitle: '',
+    location: '',
+    description: '',
+    postUrl: '',
+    salary: '',
+    companyData: null
+  })
   
-  // Default board ID from user's logs
-  const [boardId, setBoardId] = useState('75ca1da2-80b9-4d74-a43a-1c0bbb2b2c2d')
+  const [status, setStatus] = useState<'idle' | 'scanning' | 'found' | 'error' | 'not_found'>('scanning')
+  const [errorMsg, setErrorMsg] = useState<string>('')
+  
+  // Board & List State
+  const [boards, setBoards] = useState<Board[]>([])
+  const [columns, setColumns] = useState<Column[]>([])
+  const [selectedBoardId, setSelectedBoardId] = useState('')
+  const [selectedColumnId, setSelectedColumnId] = useState('')
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  
+  const [isSaving, setIsSaving] = useState(false)
+  const [showBoardMenu, setShowBoardMenu] = useState(false)
+
+  // 1. Token Sync - Find frontend tab and ask for tokens
+  const syncToken = useCallback(async () => {
+    console.log('App: Starting token sync...');
+    try {
+      const tabs = await chrome.tabs.query({})
+      // Look for localhost or 127.0.0.1 on common ports (HTTP/HTTPS)
+      const frontendTabs = tabs.filter(t => 
+        t.url?.includes('localhost:3001') || 
+        t.url?.includes('localhost:3000') ||
+        t.url?.includes('127.0.0.1:3001') ||
+        t.url?.includes('127.0.0.1:3000') ||
+        t.url?.includes('localhost:5173') // Vite default fallback
+      );
+      
+      if (frontendTabs.length === 0) {
+        console.log('App: No matching frontend tabs found in current window.');
+      } else {
+        console.log(`App: Probing ${frontendTabs.length} tabs for tokens:`, frontendTabs.map(t => t.url));
+      }
+
+      if (frontendTabs.length > 0) {
+        // Try each tab until one works
+        for (const tab of frontendTabs) {
+          if (!tab.id) continue;
+          
+          chrome.tabs.sendMessage(tab.id, { action: 'getTokens' }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.log(`App: Tab ${tab.id} (${tab.url}) is not responding to getTokens.`);
+              return;
+            }
+            if (response?.accessToken) {
+              console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
+              setAccessToken(response.accessToken);
+              chrome.storage.local.set({ accessToken: response.accessToken });
+            } else {
+              console.log(`App: Tab ${tab.id} responded but had no tokens. Are you logged in?`);
+            }
+          });
+        }
+      } else {
+        console.log('App: No frontend tab found, checking storage...');
+        // Fallback to local storage if no tab is open
+        chrome.storage.local.get(['accessToken'], (result) => {
+          if (result.accessToken) {
+            console.log('App: Token found in local storage');
+            setAccessToken(result.accessToken);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('App: Token sync failed:', err);
+    }
+  }, [])
 
   useEffect(() => {
-    const scrapeData = async () => {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-        if (!tab.id) return
+    syncToken();
+    // Re-check for token every 5 seconds if not yet synced and popup is open
+    const interval = setInterval(() => {
+      if (!accessToken) syncToken();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [syncToken, accessToken])
 
+  // 2. Fetch Boards when token is available
+  useEffect(() => {
+    if (accessToken) {
+      fetchBoards(accessToken).then(data => {
+        setBoards(data)
+        if (data.length === 1) {
+          // Auto-select if only one board
+          setSelectedBoardId(data[0].id)
+        } else if (data.length > 1) {
+          chrome.storage.local.get(['lastBoardId'], (result) => {
+            const id = result.lastBoardId || data[0].id
+            setSelectedBoardId(id)
+          })
+        }
+      })
+    }
+  }, [accessToken])
+
+  // 3. Fetch Columns when Board changes
+  useEffect(() => {
+    if (accessToken && selectedBoardId) {
+      fetchBoardColumns(accessToken, selectedBoardId).then(data => {
+        setColumns(data)
+        if (data.length > 0) {
+          setSelectedColumnId(data[0].id)
+          chrome.storage.local.set({ lastBoardId: selectedBoardId })
+        }
+      })
+    }
+  }, [accessToken, selectedBoardId])
+
+  const scrapeData = useCallback(async (retries = 3) => {
+    setStatus('scanning')
+    setErrorMsg('')
+    
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tab || !tab.id) {
+        setStatus('error')
+        setErrorMsg('No active tab found.')
+        return
+      }
+
+      const attemptSendMessage = (attempt: number) => {
         chrome.tabs.sendMessage(
-          tab.id, 
+          tab.id!, 
           { action: 'scrapeJobInfo' }, 
-          (response: JobInfo) => {
+          async (response: any) => {
             if (chrome.runtime.lastError) {
-              setError('Please refresh the job page and try again.')
-              setLoading(false)
+              console.log('App: Content script not responding. Attempting injection...');
+              
+              // Only try injection once
+              if (attempt === 0) {
+                try {
+                  // Try to inject the content script manually
+                  await chrome.scripting.executeScript({
+                    target: { tabId: tab.id! },
+                    files: ['assets/index.ts-D4ftOcmN.js'] 
+                  });
+                  console.log('App: Script injected. Retrying in 500ms...');
+                  setTimeout(() => attemptSendMessage(attempt + 1), 500);
+                  return;
+                } catch (injectErr) {
+                  console.error('App: Manual injection failed:', injectErr);
+                }
+              }
+
+              if (attempt < retries) {
+                setTimeout(() => attemptSendMessage(attempt + 1), 1000)
+              } else {
+                setStatus('error')
+                setErrorMsg('The job page needs a refresh to connect to the extension.')
+              }
               return
             }
             
             if (response && (response.company || response.jobTitle)) {
-              setJobInfo(response)
+              setJobInfo(prev => ({
+                ...prev,
+                company: response.company || '',
+                jobTitle: response.jobTitle || '',
+                location: response.location || '',
+                description: response.description || '',
+                postUrl: response.postUrl || tab.url || '',
+                salary: response.salary || ''
+              }))
+              setStatus('found')
             } else {
-              setError('Could not find job details on this page.')
+              setStatus('not_found')
             }
-            setLoading(false)
           }
         )
-      } catch (err) {
-        setError('Navigate to a job posting to capture details.')
-        setLoading(false)
       }
+      attemptSendMessage(1)
+    } catch (err) {
+      setStatus('error')
+      setErrorMsg('Extension error.')
     }
-
-    scrapeData()
   }, [])
 
-  const handleSave = (autoSave: boolean) => {
-    if (!jobInfo) return
+  useEffect(() => {
+    scrapeData()
+  }, [scrapeData])
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setJobInfo(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleSave = (autoSave: boolean) => {
+    if (!selectedBoardId) return
+    setIsSaving(true)
     const baseUrl = 'http://localhost:3001'
     const params = new URLSearchParams({
       company: jobInfo.company,
@@ -62,105 +232,245 @@ function App() {
       description: jobInfo.description || '',
       url: jobInfo.postUrl || '',
       salary: jobInfo.salary || '',
+      columnId: selectedColumnId,
       autoSave: autoSave.toString()
     })
 
-    const targetUrl = `${baseUrl}/home/boards/${boardId}/board?${params.toString()}`
+    const targetUrl = `${baseUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`
     window.open(targetUrl, '_blank')
+    setTimeout(() => setIsSaving(false), 1000)
   }
 
+  const selectedBoard = boards.find(b => b.id === selectedBoardId)
+
   return (
-    <div className="w-[380px] p-4 bg-slate-950 text-white font-sans border border-slate-800 shadow-2xl overflow-hidden rounded-xl">
-      <header className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">J</div>
-          <h1 className="text-lg font-extrabold tracking-tight">
-            Job Tracker
-          </h1>
-        </div>
-        <div className="flex flex-col items-end">
-          <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">AI Scraper</span>
-          <span className="text-[8px] text-slate-500 font-mono">v1.1.0</span>
-        </div>
-      </header>
-
-      <main className="space-y-4">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <div className="relative w-12 h-12">
-              <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <div className="w-[420px] min-h-[580px] bg-white text-slate-900 font-sans selection:bg-blue-100 flex flex-col">
+      <div className="p-5 flex flex-col flex-1 space-y-5">
+        
+        {/* Header */}
+        <header className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
+               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 1 0 10 10"/><path d="M12 8a4 4 0 1 1-4 4"/></svg>
             </div>
-            <p className="text-sm font-medium text-slate-400 animate-pulse">Scanning page for job details...</p>
+            <div>
+              <h1 className="text-[17px] font-bold text-slate-800 tracking-tight leading-none">Job Tracker</h1>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-1 block">Extension Copilot</span>
+            </div>
           </div>
-        ) : error ? (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-2">
-             <div className="flex items-center gap-2 text-red-400">
-               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-               <span className="text-xs font-bold uppercase tracking-wider">Error Encountered</span>
-             </div>
-             <p className="text-sm text-slate-300 leading-relaxed">{error}</p>
-          </div>
-        ) : jobInfo ? (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-500">
-            <div className="space-y-3 p-4 bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur-sm">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Company</label>
-                  <p className="text-sm font-bold text-slate-100 truncate" title={jobInfo.company}>{jobInfo.company || 'Unknown'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Location</label>
-                  <p className="text-sm font-bold text-slate-100 truncate" title={jobInfo.location}>{jobInfo.location || 'Not specified'}</p>
-                </div>
+          <button 
+            onClick={() => {
+              syncToken();
+              scrapeData();
+            }} 
+            className="p-2 rounded-full hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-all duration-300"
+            title="Rescan & Sync"
+          >
+            <RefreshCw size={18} strokeWidth={2.5} className={status === 'scanning' ? 'animate-spin' : ''} />
+          </button>
+        </header>
+
+        {/* Dynamic Content */}
+        <main className="flex-1 overflow-visible">
+          {status === 'scanning' ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm font-medium text-slate-400">Scanning for job details...</p>
+            </div>
+          ) : status === 'not_found' || status === 'error' ? (
+            <div className="py-8 text-center space-y-4 bg-slate-50 rounded-2xl border border-slate-100 p-6">
+              <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
+                <AlertCircle size={24} className="text-amber-500" />
               </div>
-              <div className="space-y-1 pt-2 border-t border-white/5">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Position Title</label>
-                <p className="text-sm font-bold text-blue-400 truncate" title={jobInfo.jobTitle}>{jobInfo.jobTitle || 'No Title Found'}</p>
+              <div className="space-y-1">
+                <h3 className="font-bold text-slate-800">Connection Issue</h3>
+                <p className="text-xs text-slate-500 leading-relaxed px-2">
+                  {status === 'error' ? errorMsg : "The page script is not responding. This usually happens after an extension update or if the page was open before the extension was installed."}
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-700 leading-normal text-left flex gap-2">
+                  <div className="mt-0.5">💡</div>
+                  <p>Clicking below will refresh this tab to reconnect the script. <strong>You will need to reopen this popup after the refresh.</strong></p>
+                </div>
+                <button 
+                  onClick={async () => {
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+                    if (tab?.id) {
+                      chrome.tabs.reload(tab.id)
+                      // Use a slight delay to ensure the command is sent before the popup closes
+                      setTimeout(() => window.close(), 100);
+                    }
+                  }}
+                  className="w-full py-3 bg-blue-600 text-white font-bold text-sm rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={16} />
+                  Refresh & Reconnect
+                </button>
               </div>
             </div>
-
-            <div className="space-y-2 px-1">
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex justify-between">
-                <span>Target Board ID</span>
-                <span className="text-slate-600 font-normal normal-case">Saved in settings</span>
-              </label>
-              <input 
-                type="text" 
-                value={boardId}
-                onChange={(e) => setBoardId(e.target.value)}
-                className="w-full text-xs bg-slate-900 border border-white/10 rounded-xl px-3 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono"
-                placeholder="Enter Board ID..."
-              />
-            </div>
-
-            <div className="grid grid-cols-5 gap-2 pt-2">
-              <button
-                onClick={() => handleSave(true)}
-                className="col-span-3 py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black rounded-xl transition-all shadow-xl shadow-blue-900/40 flex items-center justify-center gap-2 text-sm"
-              >
-                <span>Automated Save</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="animate-pulse"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-              </button>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5 overflow-visible">
               
-              <button
-                onClick={() => handleSave(false)}
-                className="col-span-2 py-3 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold rounded-xl transition-all border border-white/5 flex items-center justify-center gap-2 text-sm"
-              >
-                <span>Edit First</span>
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </main>
+              {/* Job Form */}
+              <div className="space-y-4 overflow-visible">
+                <div className="flex gap-4 overflow-visible">
+                  <div className="flex-1 space-y-1.5 overflow-visible">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Company</label>
+                    <CompanyAutocomplete 
+                      value={jobInfo.company}
+                      onChange={(val) => setJobInfo(prev => ({ ...prev, company: val }))}
+                      onCompanySelect={(company) => setJobInfo(prev => ({ ...prev, company: company.name, companyData: company }))}
+                      selectedCompany={jobInfo.companyData}
+                      placeholder="Company name"
+                    />
+                  </div>
+                  <div className="w-[140px] space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Location</label>
+                    <input 
+                      name="location"
+                      value={jobInfo.location}
+                      onChange={handleInputChange}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      placeholder="e.g. Remote"
+                    />
+                  </div>
+                </div>
 
-      <footer className="mt-6 pt-3 border-t border-white/5 flex justify-between items-center text-[9px] text-slate-600 font-medium italic">
-        <span>Ready to sync with dashboard</span>
-        <div className="flex gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-          <span className="text-green-500/70 not-italic font-bold">LIVE</span>
-        </div>
-      </footer>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Job Title</label>
+                  <input 
+                    name="jobTitle"
+                    value={jobInfo.jobTitle}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    placeholder="Software Engineer"
+                  />
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="w-[140px] space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Salary</label>
+                    <input 
+                      name="salary"
+                      value={jobInfo.salary}
+                      onChange={handleInputChange}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      placeholder="e.g. $120k"
+                    />
+                  </div>
+                  
+                  {/* Board Selection */}
+                  <div className="flex-1 space-y-1.5 relative">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                      {boards.length === 1 ? 'Board' : 'Save to Board'}
+                    </label>
+                    <button 
+                      onClick={() => { if (boards.length > 1) setShowBoardMenu(!showBoardMenu); }}
+                      className={cn(
+                        "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 flex items-center justify-between transition-all",
+                        boards.length > 1 ? "hover:border-slate-300" : "cursor-default opacity-80"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Layout size={14} className="text-blue-500 flex-shrink-0" />
+                        <span className="truncate">{selectedBoard?.name || (!accessToken ? 'Sync Required' : (boards.length === 0 ? 'No boards found' : 'Select Board'))}</span>
+                      </div>
+                      {boards.length > 1 && <ChevronDown size={14} className={cn("text-slate-400 transition-transform", showBoardMenu && "rotate-180")} />}
+                    </button>
+                    
+                    {showBoardMenu && boards.length > 1 && (
+                      <div className="absolute z-50 bottom-full mb-1 w-full bg-white border border-slate-100 rounded-xl shadow-2xl p-1 animate-in fade-in slide-in-from-bottom-2 duration-200 max-h-[200px] overflow-y-auto">
+                        {boards.length === 0 ? (
+                          <div className="p-3 text-xs text-slate-400 text-center italic">No boards found. Log in to the web app.</div>
+                        ) : boards.map(board => (
+                          <button
+                            key={board.id}
+                            onClick={() => { setSelectedBoardId(board.id); setShowBoardMenu(false); }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors",
+                              selectedBoardId === board.id ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50"
+                            )}
+                          >
+                            <span className="truncate">{board.name}</span>
+                            {selectedBoardId === board.id && <Check size={14} />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* List Selection */}
+                {columns.length > 0 && (
+                  <div className="space-y-1.5 relative">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Select List</label>
+                    <div className="flex flex-wrap gap-2">
+                      {columns.map(col => (
+                        <button
+                          key={col.id}
+                          onClick={() => setSelectedColumnId(col.id)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                            selectedColumnId === col.id 
+                              ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100" 
+                              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                          )}
+                        >
+                          {col.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Job Description (Snippet)</label>
+                  <textarea 
+                    name="description"
+                    value={jobInfo.description}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs leading-relaxed text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+                    placeholder="Scraped description will appear here..."
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={isSaving || !selectedBoardId}
+                  className="py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
+                >
+                  <Zap size={16} fill="white" strokeWidth={0} />
+                  Quick Save
+                </button>
+                <button
+                  onClick={() => handleSave(false)}
+                  disabled={isSaving || !selectedBoardId}
+                  className="py-3.5 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-slate-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
+                >
+                  <Edit3 size={16} />
+                  Customize
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+
+        <footer className="pt-4 border-t border-slate-50 flex justify-between items-center">
+          <button 
+            onClick={() => syncToken()}
+            className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight hover:text-blue-600 transition-colors"
+          >
+             <div className={cn("w-2 h-2 rounded-full", accessToken ? "bg-green-500 ring-4 ring-green-50" : "bg-amber-400 ring-4 ring-amber-50 animate-pulse")}></div>
+             <span>{accessToken ? `Board: ${selectedBoard?.name || '...'}` : 'Sync with Web App'}</span>
+          </button>
+          <span className="text-[10px] text-slate-300 font-mono">Build 1.3.8-pro</span>
+        </footer>
+      </div>
     </div>
   )
 }

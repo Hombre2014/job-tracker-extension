@@ -9,4 +9,13 @@ export default defineConfig({
     react(),
     crx({ manifest: manifest as any }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        assetFileNames: 'assets/[name].[ext]',
+        chunkFileNames: 'assets/[name].js',
+        entryFileNames: 'assets/[name].js',
+      },
+    },
+  },
 })

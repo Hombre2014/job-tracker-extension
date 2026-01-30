@@ -1,11 +1,10 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
+/* Clean slate for Tailwind-only styling */
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  padding: 0;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
 }

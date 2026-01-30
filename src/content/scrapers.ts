@@ -31,7 +31,9 @@ const fromJsonLd = (): Partial<ScrapedJobInfo> | null => {
           location: typeof jobData.jobLocation?.address === 'string' ? 
                     jobData.jobLocation.address : 
                     (jobData.jobLocation?.address?.addressLocality || ''),
-          description: jobData.description?.replace(/<[^>]*>?/gm, ''), // Simple HTML strip
+          description: typeof jobData.description === 'string' ? 
+                       jobData.description.replace(/<[^>]*>?/gm, '') : 
+                       '', // Support object descriptions if needed later
           postUrl: window.location.href,
         };
       }
@@ -61,13 +63,79 @@ const fromMetaTags = (): Partial<ScrapedJobInfo> => {
  * LinkedIn Specific Fallback
  */
 const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
-  return {
-    jobTitle: document.querySelector('.job-details-jobs-unified-top-card__job-title')?.textContent?.trim() || 
-              document.querySelector('h1')?.textContent?.trim(),
-    company: document.querySelector('.job-details-jobs-unified-top-card__company-name')?.textContent?.trim() || 
-             document.querySelector('.jobs-unified-top-card__company-name')?.textContent?.trim(),
-    location: document.querySelector('.job-details-jobs-unified-top-card__bullet')?.textContent?.trim(),
+  // 1. Find the main job details container (avoids sidebars/alerts)
+  const container = 
+    document.querySelector('[data-view-name="job-details"]') || 
+    document.querySelector('.jobs-search__job-details--container') ||
+    document.querySelector('main#main') ||
+    document;
+
+  const getText = (selectors: string[], root: Element | Document = container) => {
+    for (const selector of selectors) {
+      const el = root.querySelector(selector);
+      if (el && el.textContent?.trim()) return el.textContent.trim();
+    }
+    return '';
   };
+
+  const title = getText([
+    '.job-details-jobs-unified-top-card__job-title', 
+    '.jobs-unified-top-card__job-title',
+    'h2.t-24', // LinkedIn often uses h2 for titles in collections view
+    'h1.t-24',
+    'h1',
+    'h2'
+  ]);
+
+  const company = getText([
+    '.job-details-jobs-unified-top-card__company-name',
+    '.jobs-unified-top-card__company-name',
+    '.jobs-unified-top-card__company-name a',
+    '.job-details-jobs-unified-top-card__primary-description a:nth-of-type(1)',
+    '.topcard__org-name-link',
+    'a[href*="/company/"]'
+  ]);
+
+  const locationRaw = getText([
+    '.job-details-jobs-unified-top-card__bullet',
+    '.jobs-unified-top-card__bullet',
+    '.job-details-jobs-unified-top-card__primary-description span:nth-of-type(1)',
+    '.top-card-layout__first-subline span:nth-of-type(1)',
+    '.jobs-unified-top-card__workplace-type',
+    '.job-details-jobs-unified-top-card__primary-description',
+    '.tvm__text--low-emphasis span:first-child',
+    '.job-details-jobs-unified-top-card__primary-description-container span'
+  ]);
+
+  let location = locationRaw;
+  if (location && location.includes('·')) {
+    location = location.split('·')[0].trim();
+  }
+
+  if (!location) {
+    const primaryDesc = getText(['.job-details-jobs-unified-top-card__primary-description', '.top-card-layout__first-subline']);
+    if (primaryDesc) {
+      location = primaryDesc.split('·')[0].trim();
+    }
+  }
+
+  // Salary capture (LinkedIn often hides this in insights or specific spans)
+  const salary = getText([
+    '.job-details-jobs-unified-top-card__job-insight--highlight',
+    '.job-details-jobs-unified-top-card__job-insight',
+    '.jobs-unified-top-card__job-insight'
+  ]);
+
+  const descriptionRaw = getText([
+    '#job-details',
+    '.jobs-description__content',
+    '.jobs-box__html-content',
+    '.show-more-less-html__markup'
+  ]);
+
+  const description = descriptionRaw.replace(/^About the job\s*/i, '').trim();
+
+  return { jobTitle: title, company, location, description, salary };
 };
 
 /**
@@ -100,13 +168,16 @@ export const getScrapedInfo = (): ScrapedJobInfo => {
   // 3. Try Meta tags
   const metaData = fromMetaTags();
 
-  // Merge (JSON-LD > Site Specific > Meta)
-  return {
+  // Merge (Site Specific > JSON-LD > Meta)
+  const result = {
     jobTitle: siteData.jobTitle || ldData?.jobTitle || metaData.jobTitle || '',
     company: siteData.company || ldData?.company || metaData.company || '',
     location: siteData.location || ldData?.location || '',
-    description: ldData?.description || '',
+    description: siteData.description || ldData?.description || '',
     postUrl: window.location.href,
-    salary: ldData?.salary || '',
+    salary: siteData.salary || ldData?.salary || '',
   };
+
+  console.log('Job Tracker Extension: Scrape result:', result);
+  return result;
 };
