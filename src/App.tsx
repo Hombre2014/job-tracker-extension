@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import { CompanyAutocomplete } from './components/CompanyAutocomplete'
-import { fetchBoards, fetchBoardColumns, type CompanySuggestion } from './lib/services'
+import { fetchBoards, fetchBoardColumns, type CompanySuggestion, type Board, type BoardColumn as Column } from './lib/services'
 import { ChevronDown, Layout, Check, AlertCircle, RefreshCw, Zap, Edit3 } from 'lucide-react'
 import { cn } from './lib/utils'
 
@@ -15,14 +15,13 @@ interface JobInfo {
   companyData?: CompanySuggestion | null
 }
 
-interface Board {
-  id: string
-  name: string
-}
-
-interface Column {
-  id: string
-  name: string
+interface ScrapeResponse {
+  company?: string
+  jobTitle?: string
+  location?: string
+  description?: string
+  postUrl?: string
+  salary?: string
 }
 
 function App() {
@@ -159,7 +158,7 @@ function App() {
         chrome.tabs.sendMessage(
           tab.id!, 
           { action: 'scrapeJobInfo' }, 
-          async (response: any) => {
+          async (response: ScrapeResponse) => {
             if (chrome.runtime.lastError) {
               console.log('App: Content script not responding. Attempting injection...');
               
@@ -167,13 +166,20 @@ function App() {
               if (attempt === 0) {
                 try {
                   // Try to inject the content script manually
-                  await chrome.scripting.executeScript({
-                    target: { tabId: tab.id! },
-                    files: ['assets/index.ts-D4ftOcmN.js'] 
-                  });
-                  console.log('App: Script injected. Retrying in 500ms...');
-                  setTimeout(() => attemptSendMessage(attempt + 1), 500);
-                  return;
+                  const manifest = chrome.runtime.getManifest()
+                  const scriptFile = manifest.content_scripts?.[0]?.js?.[0]
+
+                  if (scriptFile) {
+                    await chrome.scripting.executeScript({
+                      target: { tabId: tab.id! },
+                      files: [scriptFile]
+                    });
+                    console.log('App: Script injected. Retrying in 500ms...');
+                    setTimeout(() => attemptSendMessage(attempt + 1), 500);
+                    return;
+                  } else {
+                    console.warn('App: Could not determine content script path from manifest.')
+                  }
                 } catch (injectErr) {
                   console.error('App: Manual injection failed:', injectErr);
                 }
@@ -205,15 +211,19 @@ function App() {
           }
         )
       }
-      attemptSendMessage(1)
-    } catch (err) {
+      attemptSendMessage(0)
+    } catch {
       setStatus('error')
       setErrorMsg('Extension error.')
     }
   }, [])
 
   useEffect(() => {
-    scrapeData()
+    // Use requestAnimationFrame to avoid synchronous state update warnings
+    const handle = requestAnimationFrame(() => {
+      scrapeData()
+    })
+    return () => cancelAnimationFrame(handle)
   }, [scrapeData])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

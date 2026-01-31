@@ -26,8 +26,8 @@ export const fetchCompanySuggestions = async (
 
     const data: CompanySuggestion[] = await response.json();
     return data;
-  } catch (error: any) {
-    if (error?.name === 'AbortError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
     console.error('Error fetching company suggestions:', error);
@@ -35,21 +35,32 @@ export const fetchCompanySuggestions = async (
   }
 };
 
-export const fetchBoards = async (token: string): Promise<any[]> => {
+export interface Board {
+  id: string;
+  name: string;
+  isArchived?: boolean;
+}
+
+export interface BoardColumn {
+  id: string;
+  name: string;
+}
+
+export const fetchBoards = async (token: string): Promise<Board[]> => {
   try {
     const response = await fetch(`${config.backendUrl}/boards-all`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!response.ok) throw new Error('Failed to fetch boards');
-    const data = await response.json();
-    return data.filter((b: any) => !b.isArchived);
+    const data: Board[] = await response.json();
+    return data.filter((b) => !b.isArchived);
   } catch (error) {
     console.error('Error fetching boards:', error);
     return [];
   }
 };
 
-export const fetchBoardColumns = async (token: string, boardId: string): Promise<any[]> => {
+export const fetchBoardColumns = async (token: string, boardId: string): Promise<BoardColumn[]> => {
   try {
     const response = await fetch(`${config.backendUrl}/boards/${boardId}`, {
       headers: { Authorization: `Bearer ${token}` }
