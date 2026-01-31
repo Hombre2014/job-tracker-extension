@@ -5,5 +5,6 @@ export const config = {
   clearbit: {
     autocompleteUrl: 'https://autocomplete.clearbit.com/v1/companies/suggest',
   },
-  backendUrl: 'http://localhost:3000',
+  backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+  frontendUrl: import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3001',
 } as const;

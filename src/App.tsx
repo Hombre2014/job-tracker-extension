@@ -1,27 +1,42 @@
-import { useState, useEffect, useCallback } from 'react'
-import './App.css'
-import { CompanyAutocomplete } from './components/CompanyAutocomplete'
-import { fetchBoards, fetchBoardColumns, type CompanySuggestion, type Board, type BoardColumn as Column } from './lib/services'
-import { ChevronDown, Layout, Check, AlertCircle, RefreshCw, Zap, Edit3 } from 'lucide-react'
-import { cn } from './lib/utils'
+import { useState, useEffect, useCallback } from 'react';
+import './App.css';
+import { CompanyAutocomplete } from './components/CompanyAutocomplete';
+import {
+  fetchBoards,
+  fetchBoardColumns,
+  type CompanySuggestion,
+  type Board,
+  type BoardColumn as Column,
+} from './lib/services';
+import { config } from './lib/config';
+import {
+  ChevronDown,
+  Layout,
+  Check,
+  AlertCircle,
+  RefreshCw,
+  Zap,
+  Edit3,
+} from 'lucide-react';
+import { cn } from './lib/utils';
 
 interface JobInfo {
-  company: string
-  jobTitle: string
-  location?: string
-  description?: string
-  postUrl?: string
-  salary?: string
-  companyData?: CompanySuggestion | null
+  company: string;
+  jobTitle: string;
+  location?: string;
+  description?: string;
+  postUrl?: string;
+  salary?: string;
+  companyData?: CompanySuggestion | null;
 }
 
 interface ScrapeResponse {
-  company?: string
-  jobTitle?: string
-  location?: string
-  description?: string
-  postUrl?: string
-  salary?: string
+  company?: string;
+  jobTitle?: string;
+  location?: string;
+  description?: string;
+  postUrl?: string;
+  salary?: string;
 }
 
 function App() {
@@ -32,75 +47,78 @@ function App() {
     description: '',
     postUrl: '',
     salary: '',
-    companyData: null
-  })
-  
-  const [status, setStatus] = useState<'idle' | 'scanning' | 'found' | 'error' | 'not_found'>('scanning')
-  const [errorMsg, setErrorMsg] = useState<string>('')
-  
+    companyData: null,
+  });
+
+  const [status, setStatus] = useState<
+    'idle' | 'scanning' | 'found' | 'error' | 'not_found'
+  >('scanning');
+  const [errorMsg, setErrorMsg] = useState<string>('');
+
   // Board & List State
-  const [boards, setBoards] = useState<Board[]>([])
-  const [columns, setColumns] = useState<Column[]>([])
-  const [selectedBoardId, setSelectedBoardId] = useState('')
-  const [selectedColumnId, setSelectedColumnId] = useState('')
-  const [accessToken, setAccessToken] = useState<string | null>(null)
-  
-  const [isSaving, setIsSaving] = useState(false)
-  const [showBoardMenu, setShowBoardMenu] = useState(false)
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState('');
+  const [selectedColumnId, setSelectedColumnId] = useState('');
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [showBoardMenu, setShowBoardMenu] = useState(false);
 
   // 1. Token Sync - Find frontend tab and ask for tokens
   const syncToken = useCallback(async () => {
     console.log('App: Starting token sync...');
-    try {
-      const tabs = await chrome.tabs.query({})
-      // Look for localhost or 127.0.0.1 on common ports (HTTP/HTTPS)
-      const frontendTabs = tabs.filter(t => 
-        t.url?.includes('localhost:3001') || 
-        t.url?.includes('localhost:3000') ||
-        t.url?.includes('127.0.0.1:3001') ||
-        t.url?.includes('127.0.0.1:3000') ||
-        t.url?.includes('localhost:5173') // Vite default fallback
-      );
-      
-      if (frontendTabs.length === 0) {
-        console.log('App: No matching frontend tabs found in current window.');
-      } else {
-        console.log(`App: Probing ${frontendTabs.length} tabs for tokens:`, frontendTabs.map(t => t.url));
+    
+    // Baseline: Always check storage first
+    chrome.storage.local.get(['accessToken'], (result) => {
+      if (result.accessToken && !accessToken) {
+        console.log('App: Token recovered from storage');
+        setAccessToken(result.accessToken);
       }
+    });
+
+    try {
+      const tabs = await chrome.tabs.query({});
+      // Look for localhost or 127.0.0.1 on common ports (HTTP/HTTPS) or production URL
+      const frontendTabs = tabs.filter(
+        (t) =>
+          t.url?.includes('localhost:3001') ||
+          t.url?.includes('localhost:3000') ||
+          t.url?.includes('127.0.0.1:3001') ||
+          t.url?.includes('127.0.0.1:3000') ||
+          t.url?.includes('localhost:5173') || // Vite default fallback
+          (config.frontendUrl && t.url?.includes(config.frontendUrl.replace(/^https?:\/\//, ''))),
+      );
 
       if (frontendTabs.length > 0) {
-        // Try each tab until one works
+        console.log(`App: Probing ${frontendTabs.length} tabs for fresh tokens...`);
+        let tokenFound = false;
         for (const tab of frontendTabs) {
           if (!tab.id) continue;
-          
-          chrome.tabs.sendMessage(tab.id, { action: 'getTokens' }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.log(`App: Tab ${tab.id} (${tab.url}) is not responding to getTokens.`);
-              return;
-            }
-            if (response?.accessToken) {
-              console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
-              setAccessToken(response.accessToken);
-              chrome.storage.local.set({ accessToken: response.accessToken });
-            } else {
-              console.log(`App: Tab ${tab.id} responded but had no tokens. Are you logged in?`);
-            }
-          });
+
+          chrome.tabs.sendMessage(
+            tab.id,
+            { action: 'getTokens' },
+            (response) => {
+              if (tokenFound) return;
+              if (chrome.runtime.lastError) {
+                console.log(`App: Tab ${tab.id} is not responding to getTokens.`);
+                return;
+              }
+              if (response?.accessToken) {
+                tokenFound = true;
+                console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
+                setAccessToken(response.accessToken);
+                chrome.storage.local.set({ accessToken: response.accessToken });
+              }
+            },
+          );
         }
-      } else {
-        console.log('App: No frontend tab found, checking storage...');
-        // Fallback to local storage if no tab is open
-        chrome.storage.local.get(['accessToken'], (result) => {
-          if (result.accessToken) {
-            console.log('App: Token found in local storage');
-            setAccessToken(result.accessToken);
-          }
-        });
       }
     } catch (err) {
       console.error('App: Token sync failed:', err);
     }
-  }, [])
+  }, [accessToken]);
 
   useEffect(() => {
     syncToken();
@@ -109,76 +127,95 @@ function App() {
       if (!accessToken) syncToken();
     }, 5000);
     return () => clearInterval(interval);
-  }, [syncToken, accessToken])
+  }, [syncToken, accessToken]);
 
   // 2. Fetch Boards when token is available
   useEffect(() => {
     if (accessToken) {
-      fetchBoards(accessToken).then(data => {
-        setBoards(data)
-        if (data.length === 1) {
-          // Auto-select if only one board
-          setSelectedBoardId(data[0].id)
-        } else if (data.length > 1) {
-          chrome.storage.local.get(['lastBoardId'], (result) => {
-            const id = result.lastBoardId || data[0].id
-            setSelectedBoardId(id)
-          })
-        }
-      })
+      fetchBoards(accessToken)
+        .then((data) => {
+          setBoards(data);
+          if (data.length === 1) {
+            // Auto-select if only one board
+            setSelectedBoardId(data[0].id);
+          } else if (data.length > 1) {
+            chrome.storage.local.get(['lastBoardId'], (result) => {
+              const id = result.lastBoardId || data[0].id;
+              setSelectedBoardId(id);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('App: Failed to fetch boards:', err);
+          setStatus('error');
+          setErrorMsg(
+            'Failed to load job boards. Please make sure you are logged in to the web app.',
+          );
+        });
     }
-  }, [accessToken])
+  }, [accessToken]);
 
   // 3. Fetch Columns when Board changes
   useEffect(() => {
     if (accessToken && selectedBoardId) {
-      fetchBoardColumns(accessToken, selectedBoardId).then(data => {
-        setColumns(data)
-        if (data.length > 0) {
-          setSelectedColumnId(data[0].id)
-          chrome.storage.local.set({ lastBoardId: selectedBoardId })
-        }
-      })
+      fetchBoardColumns(accessToken, selectedBoardId)
+        .then((data) => {
+          setColumns(data);
+          if (data.length > 0) {
+            setSelectedColumnId(data[0].id);
+            chrome.storage.local.set({ lastBoardId: selectedBoardId });
+          }
+        })
+        .catch((err) => {
+          console.error('App: Failed to fetch columns:', err);
+        });
     }
-  }, [accessToken, selectedBoardId])
+  }, [accessToken, selectedBoardId]);
 
   const scrapeData = useCallback(async (retries = 3) => {
-    setStatus('scanning')
-    setErrorMsg('')
-    
+    setStatus('scanning');
+    setErrorMsg('');
+
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
       if (!tab || !tab.id) {
-        setStatus('error')
-        setErrorMsg('No active tab found.')
-        return
+        setStatus('error');
+        setErrorMsg('No active tab found.');
+        return;
       }
 
       const attemptSendMessage = (attempt: number) => {
         chrome.tabs.sendMessage(
-          tab.id!, 
-          { action: 'scrapeJobInfo' }, 
+          tab.id!,
+          { action: 'scrapeJobInfo' },
           async (response: ScrapeResponse) => {
             if (chrome.runtime.lastError) {
-              console.log('App: Content script not responding. Attempting injection...');
-              
+              console.log(
+                'App: Content script not responding. Attempting injection...',
+              );
+
               // Only try injection once
               if (attempt === 0) {
                 try {
                   // Try to inject the content script manually
-                  const manifest = chrome.runtime.getManifest()
-                  const scriptFile = manifest.content_scripts?.[0]?.js?.[0]
+                  const manifest = chrome.runtime.getManifest();
+                  const scriptFile = manifest.content_scripts?.[0]?.js?.[0];
 
                   if (scriptFile) {
                     await chrome.scripting.executeScript({
                       target: { tabId: tab.id! },
-                      files: [scriptFile]
+                      files: [scriptFile],
                     });
                     console.log('App: Script injected. Retrying in 500ms...');
                     setTimeout(() => attemptSendMessage(attempt + 1), 500);
                     return;
                   } else {
-                    console.warn('App: Could not determine content script path from manifest.')
+                    console.warn(
+                      'App: Could not determine content script path from manifest.',
+                    );
                   }
                 } catch (injectErr) {
                   console.error('App: Manual injection failed:', injectErr);
@@ -186,97 +223,121 @@ function App() {
               }
 
               if (attempt < retries) {
-                setTimeout(() => attemptSendMessage(attempt + 1), 1000)
+                setTimeout(() => attemptSendMessage(attempt + 1), 1000);
               } else {
-                setStatus('error')
-                setErrorMsg('The job page needs a refresh to connect to the extension.')
+                setStatus('error');
+                setErrorMsg(
+                  'The job page needs a refresh to connect to the extension.',
+                );
               }
-              return
+              return;
             }
-            
+
             if (response && (response.company || response.jobTitle)) {
-              setJobInfo(prev => ({
+              setJobInfo((prev) => ({
                 ...prev,
                 company: response.company || '',
                 jobTitle: response.jobTitle || '',
                 location: response.location || '',
                 description: response.description || '',
                 postUrl: response.postUrl || tab.url || '',
-                salary: response.salary || ''
-              }))
-              setStatus('found')
+                salary: response.salary || '',
+              }));
+              setStatus('found');
             } else {
-              setStatus('not_found')
+              setStatus('not_found');
             }
-          }
-        )
-      }
-      attemptSendMessage(0)
+          },
+        );
+      };
+      attemptSendMessage(0);
     } catch {
-      setStatus('error')
-      setErrorMsg('Extension error.')
+      setStatus('error');
+      setErrorMsg('Extension error.');
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     // Use requestAnimationFrame to avoid synchronous state update warnings
     const handle = requestAnimationFrame(() => {
-      scrapeData()
-    })
-    return () => cancelAnimationFrame(handle)
-  }, [scrapeData])
+      scrapeData();
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [scrapeData]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setJobInfo(prev => ({ ...prev, [name]: value }))
-  }
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setJobInfo((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleSave = (autoSave: boolean) => {
-    if (!selectedBoardId) return
-    setIsSaving(true)
-    const baseUrl = 'http://localhost:3001'
+    if (!selectedBoardId) return;
+    setIsSaving(true);
     const params = new URLSearchParams({
       company: jobInfo.company,
       title: jobInfo.jobTitle,
       location: jobInfo.location || '',
-      description: jobInfo.description || '',
+      description: (jobInfo.description || '').slice(0, 1000), // Truncate to avoid URL length issues
       url: jobInfo.postUrl || '',
       salary: jobInfo.salary || '',
       columnId: selectedColumnId,
-      autoSave: autoSave.toString()
-    })
+      autoSave: autoSave.toString(),
+    });
 
-    const targetUrl = `${baseUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`
-    window.open(targetUrl, '_blank')
-    setTimeout(() => setIsSaving(false), 1000)
-  }
+    const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
+    window.open(targetUrl, '_blank');
+    setTimeout(() => setIsSaving(false), 1000);
+  };
 
-  const selectedBoard = boards.find(b => b.id === selectedBoardId)
+  const selectedBoard = boards.find((b) => b.id === selectedBoardId);
 
   return (
     <div className="w-[420px] min-h-[580px] bg-white text-slate-900 font-sans selection:bg-blue-100 flex flex-col">
       <div className="p-5 flex flex-col flex-1 space-y-5">
-        
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 1 0 10 10"/><path d="M12 8a4 4 0 1 1-4 4"/></svg>
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                stroke="white"
+                strokeWidth="2.5"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a7 7 0 1 0 10 10" />
+                <path d="M12 8a4 4 0 1 1-4 4" />
+              </svg>
             </div>
             <div>
-              <h1 className="text-[17px] font-bold text-slate-800 tracking-tight leading-none">Job Tracker</h1>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-1 block">Extension Copilot</span>
+              <h1 className="text-[17px] font-bold text-slate-800 tracking-tight leading-none">
+                Job Tracker
+              </h1>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-1 block">
+                Extension Copilot
+              </span>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => {
               syncToken();
               scrapeData();
-            }} 
+            }}
             className="p-2 rounded-full hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-all duration-300"
             title="Rescan & Sync"
           >
-            <RefreshCw size={18} strokeWidth={2.5} className={status === 'scanning' ? 'animate-spin' : ''} />
+            <RefreshCw
+              size={18}
+              strokeWidth={2.5}
+              className={status === 'scanning' ? 'animate-spin' : ''}
+            />
           </button>
         </header>
 
@@ -285,7 +346,9 @@ function App() {
           {status === 'scanning' ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-sm font-medium text-slate-400">Scanning for job details...</p>
+              <p className="text-sm font-medium text-slate-400">
+                Scanning for job details...
+              </p>
             </div>
           ) : status === 'not_found' || status === 'error' ? (
             <div className="py-8 text-center space-y-4 bg-slate-50 rounded-2xl border border-slate-100 p-6">
@@ -295,19 +358,30 @@ function App() {
               <div className="space-y-1">
                 <h3 className="font-bold text-slate-800">Connection Issue</h3>
                 <p className="text-xs text-slate-500 leading-relaxed px-2">
-                  {status === 'error' ? errorMsg : "The page script is not responding. This usually happens after an extension update or if the page was open before the extension was installed."}
+                  {status === 'error'
+                    ? errorMsg
+                    : 'The page script is not responding. This usually happens after an extension update or if the page was open before the extension was installed.'}
                 </p>
               </div>
               <div className="space-y-3">
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-700 leading-normal text-left flex gap-2">
                   <div className="mt-0.5">💡</div>
-                  <p>Clicking below will refresh this tab to reconnect the script. <strong>You will need to reopen this popup after the refresh.</strong></p>
+                  <p>
+                    Clicking below will refresh this tab to reconnect the
+                    script.{' '}
+                    <strong>
+                      You will need to reopen this popup after the refresh.
+                    </strong>
+                  </p>
                 </div>
-                <button 
+                <button
                   onClick={async () => {
-                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+                    const [tab] = await chrome.tabs.query({
+                      active: true,
+                      currentWindow: true,
+                    });
                     if (tab?.id) {
-                      chrome.tabs.reload(tab.id)
+                      chrome.tabs.reload(tab.id);
                       // Use a slight delay to ensure the command is sent before the popup closes
                       setTimeout(() => window.close(), 100);
                     }
@@ -321,23 +395,34 @@ function App() {
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5 overflow-visible">
-              
               {/* Job Form */}
               <div className="space-y-4 overflow-visible">
                 <div className="flex gap-4 overflow-visible">
                   <div className="flex-1 space-y-1.5 overflow-visible">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Company</label>
-                    <CompanyAutocomplete 
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                      Company
+                    </label>
+                    <CompanyAutocomplete
                       value={jobInfo.company}
-                      onChange={(val) => setJobInfo(prev => ({ ...prev, company: val }))}
-                      onCompanySelect={(company) => setJobInfo(prev => ({ ...prev, company: company.name, companyData: company }))}
+                      onChange={(val) =>
+                        setJobInfo((prev) => ({ ...prev, company: val }))
+                      }
+                      onCompanySelect={(company) =>
+                        setJobInfo((prev) => ({
+                          ...prev,
+                          company: company.name,
+                          companyData: company,
+                        }))
+                      }
                       selectedCompany={jobInfo.companyData}
                       placeholder="Company name"
                     />
                   </div>
                   <div className="w-[140px] space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Location</label>
-                    <input 
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                      Location
+                    </label>
+                    <input
                       name="location"
                       value={jobInfo.location}
                       onChange={handleInputChange}
@@ -348,8 +433,10 @@ function App() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Job Title</label>
-                  <input 
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                    Job Title
+                  </label>
+                  <input
                     name="jobTitle"
                     value={jobInfo.jobTitle}
                     onChange={handleInputChange}
@@ -360,8 +447,10 @@ function App() {
 
                 <div className="flex gap-4">
                   <div className="w-[140px] space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Salary</label>
-                    <input 
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                      Salary
+                    </label>
+                    <input
                       name="salary"
                       value={jobInfo.salary}
                       onChange={handleInputChange}
@@ -369,41 +458,68 @@ function App() {
                       placeholder="e.g. $120k"
                     />
                   </div>
-                  
+
                   {/* Board Selection */}
                   <div className="flex-1 space-y-1.5 relative">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
                       {boards.length === 1 ? 'Board' : 'Save to Board'}
                     </label>
-                    <button 
-                      onClick={() => { if (boards.length > 1) setShowBoardMenu(!showBoardMenu); }}
+                    <button
+                      onClick={() => {
+                        if (boards.length > 1) setShowBoardMenu(!showBoardMenu);
+                      }}
                       className={cn(
-                        "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 flex items-center justify-between transition-all",
-                        boards.length > 1 ? "hover:border-slate-300" : "cursor-default opacity-80"
+                        'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 flex items-center justify-between transition-all',
+                        boards.length > 1
+                          ? 'hover:border-slate-300'
+                          : 'cursor-default opacity-80',
                       )}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <Layout size={14} className="text-blue-500 flex-shrink-0" />
-                        <span className="truncate">{selectedBoard?.name || (!accessToken ? 'Sync Required' : (boards.length === 0 ? 'No boards found' : 'Select Board'))}</span>
+                        <Layout
+                          size={14}
+                          className="text-blue-500 flex-shrink-0"
+                        />
+                        <span className="truncate">
+                          {selectedBoard?.name ||
+                            (!accessToken
+                              ? 'Sync Required'
+                              : boards.length === 0
+                                ? 'No boards found'
+                                : 'Select Board')}
+                        </span>
                       </div>
-                      {boards.length > 1 && <ChevronDown size={14} className={cn("text-slate-400 transition-transform", showBoardMenu && "rotate-180")} />}
+                      {boards.length > 1 && (
+                        <ChevronDown
+                          size={14}
+                          className={cn(
+                            'text-slate-400 transition-transform',
+                            showBoardMenu && 'rotate-180',
+                          )}
+                        />
+                      )}
                     </button>
-                    
+
                     {showBoardMenu && boards.length > 1 && (
                       <div className="absolute z-50 bottom-full mb-1 w-full bg-white border border-slate-100 rounded-xl shadow-2xl p-1 animate-in fade-in slide-in-from-bottom-2 duration-200 max-h-[200px] overflow-y-auto">
-                        {boards.length === 0 ? (
-                          <div className="p-3 text-xs text-slate-400 text-center italic">No boards found. Log in to the web app.</div>
-                        ) : boards.map(board => (
+                        {boards.map((board) => (
                           <button
                             key={board.id}
-                            onClick={() => { setSelectedBoardId(board.id); setShowBoardMenu(false); }}
+                            onClick={() => {
+                              setSelectedBoardId(board.id);
+                              setShowBoardMenu(false);
+                            }}
                             className={cn(
-                              "w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors",
-                              selectedBoardId === board.id ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50"
+                              'w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors',
+                              selectedBoardId === board.id
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'text-slate-600 hover:bg-slate-50',
                             )}
                           >
                             <span className="truncate">{board.name}</span>
-                            {selectedBoardId === board.id && <Check size={14} />}
+                            {selectedBoardId === board.id && (
+                              <Check size={14} />
+                            )}
                           </button>
                         ))}
                       </div>
@@ -414,17 +530,19 @@ function App() {
                 {/* List Selection */}
                 {columns.length > 0 && (
                   <div className="space-y-1.5 relative">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Select List</label>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                      Select List
+                    </label>
                     <div className="flex flex-wrap gap-2">
-                      {columns.map(col => (
+                      {columns.map((col) => (
                         <button
                           key={col.id}
                           onClick={() => setSelectedColumnId(col.id)}
                           className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
-                            selectedColumnId === col.id 
-                              ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100" 
-                              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                            selectedColumnId === col.id
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100'
+                              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300',
                           )}
                         >
                           {col.name}
@@ -435,8 +553,10 @@ function App() {
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Job Description (Snippet)</label>
-                  <textarea 
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                    Job Description (Snippet)
+                  </label>
+                  <textarea
                     name="description"
                     value={jobInfo.description}
                     onChange={handleInputChange}
@@ -471,18 +591,31 @@ function App() {
         </main>
 
         <footer className="pt-4 border-t border-slate-50 flex justify-between items-center">
-          <button 
+          <button
             onClick={() => syncToken()}
             className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight hover:text-blue-600 transition-colors"
           >
-             <div className={cn("w-2 h-2 rounded-full", accessToken ? "bg-green-500 ring-4 ring-green-50" : "bg-amber-400 ring-4 ring-amber-50 animate-pulse")}></div>
-             <span>{accessToken ? `Board: ${selectedBoard?.name || '...'}` : 'Sync with Web App'}</span>
+            <div
+              className={cn(
+                'w-2 h-2 rounded-full',
+                accessToken
+                  ? 'bg-green-500 ring-4 ring-green-50'
+                  : 'bg-amber-400 ring-4 ring-amber-50 animate-pulse',
+              )}
+            ></div>
+            <span>
+              {accessToken
+                ? `Board: ${selectedBoard?.name || '...'}`
+                : 'Sync with Web App'}
+            </span>
           </button>
-          <span className="text-[10px] text-slate-300 font-mono">Build 1.3.8-pro</span>
+          <span className="text-[10px] text-slate-300 font-mono">
+            Build 1.3.8-pro
+          </span>
         </footer>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

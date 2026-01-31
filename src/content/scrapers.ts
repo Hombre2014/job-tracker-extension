@@ -13,6 +13,26 @@ export interface ScrapedJobInfo {
 }
 
 /**
+ * Heuristic to find salary-like strings in a block of text
+ */
+const findSalaryInText = (text: string): string => {
+  if (!text) return '';
+
+  // Look for currency symbols followed by numbers or 'k'
+  // Examples: $100,000, $50/hr, £60k - £80k, 70.000 €
+  const salaryRegex =
+    /([$£€]\s?\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?|\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?\s?[$£€])(?:\s?[-–—]\s?([$£€]\s?\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?|\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?\s?[$£€]))?(?:\s?\/\s?(?:hr|hour|yr|year|month|mo))?/gi;
+
+  const matches = text.match(salaryRegex);
+  if (matches && matches.length > 0) {
+    // Return the first match that looks like a range or a significant number
+    return matches[0].trim();
+  }
+
+  return '';
+};
+
+/**
  * Extracts data from Schema.org JSON-LD
  */
 const fromJsonLd = (): Partial<ScrapedJobInfo> | null => {
@@ -30,6 +50,16 @@ const fromJsonLd = (): Partial<ScrapedJobInfo> | null => {
           : null;
 
       if (jobData) {
+        let salary = '';
+        if (jobData.baseSalary) {
+          const val = jobData.baseSalary.value;
+          if (typeof val === 'number') {
+            salary = `${jobData.baseSalary.currency || '$'}${val}`;
+          } else if (typeof val === 'object') {
+            salary = `${jobData.baseSalary.currency || '$'}${val.minValue || val.value} - ${val.maxValue || ''}`;
+          }
+        }
+
         return {
           jobTitle: jobData.title,
           company:
@@ -43,6 +73,7 @@ const fromJsonLd = (): Partial<ScrapedJobInfo> | null => {
               ? jobData.description.replace(/<[^>]*>?/gm, '')
               : '', // Support object descriptions if needed later
           postUrl: window.location.href,
+          salary: salary.trim(),
         };
       }
     } catch {
@@ -136,11 +167,24 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   }
 
   // Salary capture (LinkedIn often hides this in insights or specific spans)
-  const salary = getText([
-    '.job-details-jobs-unified-top-card__job-insight--highlight',
-    '.job-details-jobs-unified-top-card__job-insight',
-    '.jobs-unified-top-card__job-insight',
-  ]);
+  let salary = '';
+  const insightEls = container.querySelectorAll(
+    '.job-details-jobs-unified-top-card__job-insight, .jobs-unified-top-card__job-insight',
+  );
+  for (const el of insightEls) {
+    const text = el.textContent?.trim() || '';
+    if (text.includes('$') || text.includes('£') || text.includes('€')) {
+      salary = text;
+      break;
+    }
+  }
+
+  // Fallback to searching top card text if insight classes didn't work
+  if (!salary) {
+    const topCardText =
+      container.querySelector('.jobs-unified-top-card')?.textContent || '';
+    salary = findSalaryInText(topCardText);
+  }
 
   const descriptionRaw = getText([
     '#job-details',
@@ -158,23 +202,44 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
  * Indeed Specific Fallback
  */
 const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
-  return {
-    jobTitle:
-      document.querySelector('h1')?.textContent?.trim() ||
-      document
-        .querySelector('.jobsearch-JobInfoHeader-title')
-        ?.textContent?.trim(),
-    company:
-      document
-        .querySelector('div[data-company-name="true"]')
-        ?.textContent?.trim() ||
-      document
-        .querySelector('.jobsearch-InlineCompanyRating div')
-        ?.textContent?.trim(),
-    location: document
-      .querySelector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]')
-      ?.textContent?.trim(),
-  };
+  const title =
+    document.querySelector('h1')?.textContent?.trim() ||
+    document
+      .querySelector('.jobsearch-JobInfoHeader-title')
+      ?.textContent?.trim() ||
+    '';
+
+  const company =
+    document
+      .querySelector('div[data-company-name="true"]')
+      ?.textContent?.trim() ||
+    document
+      .querySelector('.jobsearch-InlineCompanyRating div')
+      ?.textContent?.trim() ||
+    '';
+
+  const location = document
+    .querySelector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]')
+    ?.textContent?.trim();
+
+  // Salary on Indeed
+  let salary =
+    document
+      .querySelector('#salaryInfoAndJobType .salary-snippet-container')
+      ?.textContent?.trim() ||
+    document.querySelector('.jobsearch-JobMetadataHeader-item')?.textContent?.trim() ||
+    document.querySelector('[data-testid="jobsearch-JobInfoHeader-salary"]')?.textContent?.trim() ||
+    '';
+
+  // Fallback to text scanning if specific selectors fail
+  if (!salary) {
+    const headerText =
+      document.querySelector('.jobsearch-JobInfoHeader-snippet-container')
+        ?.textContent || '';
+    salary = findSalaryInText(headerText);
+  }
+
+  return { jobTitle: title, company, location, salary };
 };
 
 export const getScrapedInfo = (): ScrapedJobInfo => {
@@ -204,6 +269,5 @@ export const getScrapedInfo = (): ScrapedJobInfo => {
     salary: siteData.salary || ldData?.salary || '',
   };
 
-  console.log('Job Tracker Extension: Scrape result:', result);
   return result;
 };

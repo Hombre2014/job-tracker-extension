@@ -7,26 +7,43 @@ import { getScrapedInfo } from './scrapers';
 
 console.log('🚀 Job Tracker Extension: Content script starting on', window.location.href);
 
-chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-  console.log('📨 Job Tracker Extension: Message received:', request.action);
-  
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // Security: Only respond to messages from our own extension
+  if (sender.id && sender.id !== chrome.runtime.id) {
+    return;
+  }
+
   try {
     if (request.action === 'scrapeJobInfo') {
       const jobInfo = getScrapedInfo();
-      console.log('✅ Job Tracker Extension: Sending scraped info:', jobInfo.jobTitle);
       sendResponse(jobInfo);
     } else if (request.action === 'getTokens') {
-      // This will only return tokens if the content script is running on the Job Tracker domain
+      // Security: Only return tokens if we are on a trusted Job Tracker domain
+      const trustedOrigins = [
+        'localhost:3001',
+        'localhost:3000',
+        '127.0.0.1:3001',
+        '127.0.0.1:3000',
+        'online-job-trackr.vercel.app'
+      ];
+      
+      const currentOrigin = window.location.host;
+      if (!trustedOrigins.includes(currentOrigin)) {
+        sendResponse({ error: 'Unauthorized origin' });
+        return;
+      }
+
       const accessToken = localStorage.getItem('accessToken');
       const refreshToken = localStorage.getItem('refreshToken');
-      console.log('🔑 Job Tracker Extension: Sending tokens (present:', !!accessToken, ')');
+      
+      // Do not log token presence or values to the console
       sendResponse({ accessToken, refreshToken });
     } else if (request.action === 'ping') {
       sendResponse({ status: 'ready' });
     }
   } catch (error) {
-    console.error('❌ Job Tracker Extension: Content script error:', error);
-    sendResponse({ error: 'Internal error in content script' });
+    // Log generic error but avoid details in production
+    sendResponse({ error: 'Internal error' });
   }
   
   return true; // Keep the message channel open for async response
