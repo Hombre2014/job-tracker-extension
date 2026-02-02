@@ -3,6 +3,49 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-02-02
+
+### Fixed
+
+- **CompanyLogo Component Robustness**
+  - Added `chrome.runtime.lastError` check to prevent silent failures when background script is unavailable
+  - Implemented unmounted component state guard to prevent React warnings from async callbacks
+  - Fixed synchronous `setState` in effect by properly initializing loading state based on domain presence
+  - Removed unused `logoUrl` prop from component interface (now exclusively uses background worker)
+  - Files: `components/CompanyLogo.tsx`, `components/CompanyAutocomplete.tsx`
+
+- **Type Safety Improvements**
+  - Fixed `catch (err: any)` to `catch (err)` in useCompanyAutocomplete hook for proper TypeScript error handling
+  - Changed TextEditor onChange event type from `any` to proper `ContentEditableEvent` from react-simple-wysiwyg
+  - Ensures type safety and eliminates ESLint warnings
+  - Files: `hooks/useCompanyAutocomplete.ts`, `components/TextEditor.tsx`
+
+- **Content Script Error Handling**
+  - Added explicit error response for unauthorized origins attempting to access tokens
+  - Implemented error logging in catch block instead of silent failure
+  - Improves debugging and security monitoring
+  - Files: `content/index.ts`
+
+- **Async Storage Operations**
+  - Made `storeTokens()` async with proper Promise handling and chrome.runtime.lastError checks
+  - Made `clearTokens()` async with proper Promise handling and chrome.runtime.lastError checks
+  - Updated App.tsx callback to async for proper await of storage operations
+  - Prevents race conditions and ensures storage operations complete before continuing
+  - Files: `lib/tokenService.ts`, `App.tsx`
+
+- **URL Security Enhancement**
+  - Added `encodeURIComponent()` for domain parameter in Google Favicon Service URL
+  - Handles special characters, internationalized domains, and prevents URL injection
+  - Example: "münchen.de" → "m%C3%BCnchen.de"
+  - Files: `background/index.ts`
+
+### Changed
+
+- **Consistency Improvements**
+  - All chrome.storage operations now follow consistent async/await pattern with error checking
+  - All error handlers properly log errors before sending responses
+  - All type annotations use specific types instead of `any`
+
 ## [1.4.0-pro] - 2026-02-02
 
 ### Added
