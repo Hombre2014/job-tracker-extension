@@ -68,7 +68,7 @@ function App() {
   // 1. Token Sync - Find frontend tab and ask for tokens
   const syncToken = useCallback(async () => {
     console.log('App: Starting token sync...');
-    
+
     // Baseline: Always check storage first
     chrome.storage.local.get(['accessToken'], (result) => {
       if (result.accessToken && !accessToken) {
@@ -87,11 +87,14 @@ function App() {
           t.url?.includes('127.0.0.1:3001') ||
           t.url?.includes('127.0.0.1:3000') ||
           t.url?.includes('localhost:5173') || // Vite default fallback
-          (config.frontendUrl && t.url?.includes(config.frontendUrl.replace(/^https?:\/\//, ''))),
+          (config.frontendUrl &&
+            t.url?.includes(config.frontendUrl.replace(/^https?:\/\//, ''))),
       );
 
       if (frontendTabs.length > 0) {
-        console.log(`App: Probing ${frontendTabs.length} potential session tabs...`);
+        console.log(
+          `App: Probing ${frontendTabs.length} potential session tabs...`,
+        );
         for (const tab of frontendTabs) {
           if (!tab.id) continue;
 
@@ -144,7 +147,9 @@ function App() {
         .catch((err) => {
           console.error('App: Failed to fetch boards:', err);
           if (err.message?.includes('401')) {
-            console.warn('App: Session expired. Clearing token and re-syncing...');
+            console.warn(
+              'App: Session expired. Clearing token and re-syncing...',
+            );
             setAccessToken(null);
             chrome.storage.local.remove('accessToken');
             syncToken();
@@ -302,7 +307,7 @@ function App() {
   const selectedBoard = boards.find((b) => b.id === selectedBoardId);
 
   return (
-    <div className="w-[420px] min-h-[580px] bg-white text-slate-900 font-sans selection:bg-blue-100 flex flex-col">
+    <div className="w-105 min-h-145 bg-white text-slate-900 font-sans selection:bg-blue-100 flex flex-col">
       <div className="p-5 flex flex-col flex-1 space-y-5">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-100 pb-4">

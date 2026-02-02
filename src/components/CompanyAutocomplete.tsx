@@ -134,7 +134,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl max-h-[220px] overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl max-h-55 overflow-y-auto">
           <ul className="py-1">
             {suggestions.map((company, index) => (
               <li key={`${company.domain}-${index}`}>
