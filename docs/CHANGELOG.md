@@ -97,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added host permissions for Google Static Content (`*.gstatic.com/*`)
   - Critical for logo fetching without CORS restrictions
 
-### Fixed
+### Fixed - 2026-02-02
 
 - **First-Click Job Capture Issue**
   - Added ping mechanism to check content script readiness
@@ -131,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Logos display correctly in Job Info Modal, Job Post cards, and Company tab
   - Files: `App.tsx`
 
-### Changed
+### Changed - 2026-02-02
 
 - **Description Field Label**
   - Changed from "Job Description (Snippet)" to "Job Description"
