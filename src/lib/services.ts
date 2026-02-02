@@ -15,16 +15,20 @@ export const fetchCompanySuggestions = async (
   }
 
   try {
+    console.log('Fetching companies from Clearbit:', query);
     const response = await fetch(
       `${config.clearbit.autocompleteUrl}?query=${encodeURIComponent(query)}`,
       { signal },
     );
+
+    console.log('Clearbit response status:', response.status, response.ok);
 
     if (!response.ok) {
       throw new Error('Failed to fetch company suggestions');
     }
 
     const data: CompanySuggestion[] = await response.json();
+    console.log('Clearbit API response:', data);
     return data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -49,21 +53,24 @@ export interface BoardColumn {
 export const fetchBoards = async (token: string): Promise<Board[]> => {
   const url = `${config.backendUrl}/boards-all`;
   console.log(`App: Fetching boards from ${url}`);
-  
+
   try {
     const response = await fetch(url, {
-      headers: { 
+      headers: {
         Authorization: `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
+        Accept: 'application/json',
+      },
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'No error body');
-      console.error(`App: Boards fetch failed with status ${response.status}:`, errorText);
+      console.error(
+        `App: Boards fetch failed with status ${response.status}:`,
+        errorText,
+      );
       throw new Error(`Server returned ${response.status}`);
     }
-    
+
     const data: Board[] = await response.json();
     return data.filter((b) => !b.isArchived);
   } catch (error) {
@@ -72,18 +79,21 @@ export const fetchBoards = async (token: string): Promise<Board[]> => {
   }
 };
 
-export const fetchBoardColumns = async (token: string, boardId: string): Promise<BoardColumn[]> => {
+export const fetchBoardColumns = async (
+  token: string,
+  boardId: string,
+): Promise<BoardColumn[]> => {
   const url = `${config.backendUrl}/boards/${boardId}`;
   try {
     const response = await fetch(url, {
-      headers: { 
+      headers: {
         Authorization: `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
+        Accept: 'application/json',
+      },
     });
-    
+
     if (!response.ok) throw new Error(`Status ${response.status}`);
-    
+
     const data = await response.json();
     return data.boardColumns || [];
   } catch (error) {

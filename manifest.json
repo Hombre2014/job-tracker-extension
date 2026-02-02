@@ -6,6 +6,10 @@
   "action": {
     "default_popup": "index.html"
   },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
   "permissions": ["activeTab", "scripting", "storage", "tabs"],
   "host_permissions": [
     "*://*.linkedin.com/*",
@@ -15,7 +19,10 @@
     "http://localhost/*",
     "http://127.0.0.1/*",
     "https://localhost/*",
-    "https://127.0.0.1/*"
+    "https://127.0.0.1/*",
+    "https://autocomplete.clearbit.com/*",
+    "https://www.google.com/*",
+    "https://*.gstatic.com/*"
   ],
   "content_scripts": [
     {

@@ -30,6 +30,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [userInteracted, setUserInteracted] = useState(false);
+  const hasAutoOpened = useRef(false);
 
   const { suggestions, isLoading, error } = useCompanyAutocomplete(value);
 
@@ -52,7 +53,29 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
     setUserInteracted(true);
     setIsOpen(true);
     setSelectedIndex(-1);
+    hasAutoOpened.current = false; // Reset when user types
   };
+
+  // Auto-open dropdown when value is prefilled and has suggestions (only once)
+  useEffect(() => {
+    if (
+      value &&
+      value.length >= 2 &&
+      suggestions.length > 0 &&
+      !selectedCompany &&
+      !hasAutoOpened.current &&
+      !userInteracted
+    ) {
+      // Use setTimeout to avoid synchronous setState in effect
+      const timer = setTimeout(() => {
+        setIsOpen(true);
+        hasAutoOpened.current = false;
+        setUserInteracted(true);
+        hasAutoOpened.current = true;
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [suggestions, value, selectedCompany, userInteracted]);
 
   const handleSelectCompany = (company: CompanySuggestion) => {
     onChange(company.name);

@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2 } from 'lucide-react';
 
-import { config } from '../lib/config';
 import { cn } from '../lib/utils';
 
 interface CompanyLogoProps {
   domain: string;
   companyName: string;
-  logoUrl?: string | null;
+  logoUrl?: string | null; // Keep for compatibility but won't use
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -21,12 +20,12 @@ const sizeMap = {
 export const CompanyLogo = ({
   domain,
   companyName,
-  logoUrl: manualLogoUrl,
   size = 'sm',
   className,
 }: CompanyLogoProps) => {
   const [hasError, setHasError] = useState(false);
-  const [prevDomain, setPrevDomain] = useState('');
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { width, height, iconSize } = sizeMap[size];
 
   // Extract domain from URL if needed
@@ -35,15 +34,29 @@ export const CompanyLogo = ({
     .replace(/^www\./, '')
     .split('/')[0];
 
-  // Reset error state when domain changes (during render to avoid cascade)
-  if (cleanDomain !== prevDomain) {
-    setPrevDomain(cleanDomain);
-    setHasError(false);
-  }
+  // Fetch logo via background script
+  useEffect(() => {
+    if (!cleanDomain) {
+      setIsLoading(false);
+      return;
+    }
 
-  const logoUrl =
-    manualLogoUrl ||
-    `https://cdn.brandfetch.io/${cleanDomain}?c=${config.brandfetch.clientId}`;
+    setHasError(false);
+    setLogoDataUrl(null);
+    setIsLoading(true);
+
+    chrome.runtime.sendMessage(
+      { action: 'fetchLogo', domain: cleanDomain },
+      (response) => {
+        setIsLoading(false);
+        if (response?.success && response.dataUrl) {
+          setLogoDataUrl(response.dataUrl);
+        } else {
+          setHasError(true);
+        }
+      },
+    );
+  }, [cleanDomain]);
 
   if (hasError || !cleanDomain) {
     return (
@@ -60,6 +73,19 @@ export const CompanyLogo = ({
     );
   }
 
+  if (isLoading || !logoDataUrl) {
+    return (
+      <div
+        className={cn(
+          'flex items-center justify-center rounded bg-slate-100',
+          className,
+        )}
+        style={{ width, height }}
+        title={companyName}
+      />
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -69,7 +95,7 @@ export const CompanyLogo = ({
       style={{ width, height }}
     >
       <img
-        src={logoUrl}
+        src={logoDataUrl}
         alt={`${companyName} logo`}
         width={width}
         height={height}

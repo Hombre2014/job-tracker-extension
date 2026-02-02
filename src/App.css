@@ -1,10 +1,58 @@
 /* Clean slate for Tailwind-only styling */
+html,
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  width: 480px;
 }
 
 #root {
-  width: 100%;
+  width: 480px;
+}
+
+/* React Simple WYSIWYG Editor Styles */
+.rsw-editor {
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.rsw-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background: white;
+  flex-wrap: wrap;
+}
+
+.rsw-btn {
+  border: 1px solid #e2e8f0;
+  background: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  transition: all 0.2s;
+}
+
+.rsw-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.rsw-btn[data-active='true'] {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.rsw-separator {
+  width: 1px;
+  background: #e2e8f0;
+  margin: 0 4px;
 }

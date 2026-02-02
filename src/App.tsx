@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { CompanyAutocomplete } from './components/CompanyAutocomplete';
+import TextEditor from './components/TextEditor';
 import {
   fetchBoards,
   fetchBoardColumns,
@@ -9,6 +10,7 @@ import {
   type BoardColumn as Column,
 } from './lib/services';
 import { config } from './lib/config';
+import { refreshAccessToken, storeTokens } from './lib/auth';
 import {
   ChevronDown,
   Layout,
@@ -61,6 +63,7 @@ function App() {
   const [selectedBoardId, setSelectedBoardId] = useState('');
   const [selectedColumnId, setSelectedColumnId] = useState('');
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [showBoardMenu, setShowBoardMenu] = useState(false);
@@ -70,10 +73,11 @@ function App() {
     console.log('App: Starting token sync...');
 
     // Baseline: Always check storage first
-    chrome.storage.local.get(['accessToken'], (result) => {
+    chrome.storage.local.get(['accessToken', 'refreshToken'], (result) => {
       if (result.accessToken && !accessToken) {
         console.log('App: Token recovered from storage');
         setAccessToken(result.accessToken);
+        setRefreshToken(result.refreshToken || null);
       }
     });
 
@@ -108,7 +112,8 @@ function App() {
               if (response?.accessToken) {
                 console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
                 setAccessToken(response.accessToken);
-                chrome.storage.local.set({ accessToken: response.accessToken });
+                setRefreshToken(response.refreshToken || null);
+                storeTokens(response.accessToken, response.refreshToken || '');
               }
             },
           );
@@ -147,12 +152,31 @@ function App() {
         .catch((err) => {
           console.error('App: Failed to fetch boards:', err);
           if (err.message?.includes('401')) {
-            console.warn(
-              'App: Session expired. Clearing token and re-syncing...',
-            );
-            setAccessToken(null);
-            chrome.storage.local.remove('accessToken');
-            syncToken();
+            console.warn('App: Session expired. Attempting token refresh...');
+            // Try to refresh token
+            if (refreshToken) {
+              refreshAccessToken(refreshToken)
+                .then((tokens) => {
+                  setAccessToken(tokens.accessToken);
+                  setRefreshToken(tokens.refreshToken);
+                  // Retry fetching boards with new token
+                  return fetchBoards(tokens.accessToken);
+                })
+                .then((data) => {
+                  setBoards(data);
+                })
+                .catch(() => {
+                  // Refresh failed, clear tokens and sync
+                  setAccessToken(null);
+                  setRefreshToken(null);
+                  chrome.storage.local.remove(['accessToken', 'refreshToken']);
+                  syncToken();
+                });
+            } else {
+              setAccessToken(null);
+              chrome.storage.local.remove('accessToken');
+              syncToken();
+            }
           } else {
             setStatus('error');
             setErrorMsg(
@@ -161,7 +185,7 @@ function App() {
           }
         });
     }
-  }, [accessToken]);
+  }, [accessToken, refreshToken, syncToken]);
 
   // 3. Fetch Columns when Board changes
   useEffect(() => {
@@ -313,8 +337,16 @@ function App() {
   const handleSave = (autoSave: boolean) => {
     if (!selectedBoardId) return;
     setIsSaving(true);
+
+    // Debug: Check what company data we have
+    console.log('=== SAVE DEBUG ===');
+    console.log('Company:', jobInfo.company);
+    console.log('Company Data:', jobInfo.companyData);
+    console.log('Domain:', jobInfo.companyData?.domain);
+
     const params = new URLSearchParams({
       company: jobInfo.company,
+      companyDomain: jobInfo.companyData?.domain || '', // Pass company domain for logo
       title: jobInfo.jobTitle,
       location: jobInfo.location || '',
       description: (jobInfo.description || '').slice(0, 1000), // Truncate to avoid URL length issues
@@ -325,6 +357,7 @@ function App() {
     });
 
     const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
+    console.log('Opening URL:', targetUrl);
     window.open(targetUrl, '_blank');
     setTimeout(() => setIsSaving(false), 1000);
   };
@@ -592,15 +625,13 @@ function App() {
 
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                    Job Description (Snippet)
+                    Job Description
                   </label>
-                  <textarea
-                    name="description"
-                    value={jobInfo.description}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs leading-relaxed text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
-                    placeholder="Scraped description will appear here..."
+                  <TextEditor
+                    value={jobInfo.description || ''}
+                    onChange={(value) =>
+                      setJobInfo((prev) => ({ ...prev, description: value }))
+                    }
                   />
                 </div>
               </div>

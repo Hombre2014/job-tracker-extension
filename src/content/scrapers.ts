@@ -290,14 +290,27 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     if (found) salary = found;
   }
 
-  const descriptionRaw = getText([
+  // Get HTML formatted description instead of plain text
+  const getHTML = (selectors: string[]): string => {
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && el.innerHTML) return el.innerHTML;
+    }
+    return '';
+  };
+
+  const descriptionRaw = getHTML([
     '#job-details',
     '.jobs-description__content',
     '.jobs-box__html-content',
     '.show-more-less-html__markup',
   ]);
 
-  const description = descriptionRaw.replace(/^About the job\s*/i, '').trim();
+  // Clean up the HTML description
+  const description = descriptionRaw
+    .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove scripts
+    .replace(/^<[^>]*>About the job<\/[^>]*>/i, '') // Remove 'About the job' header
+    .trim();
 
   // If salary still not found, try extracting from description (first 500 chars)
   if (!salary && description) {
@@ -315,12 +328,37 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
  * Indeed Specific Fallback
  */
 const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
-  const title =
-    document.querySelector('h1')?.textContent?.trim() ||
+  // Job Title - Try multiple selectors for Indeed's job title
+  let title =
+    document
+      .querySelector('.jobsearch-JobInfoHeader-title span[title]')
+      ?.getAttribute('title') ||
+    document
+      .querySelector('.jobsearch-JobInfoHeader-title span')
+      ?.textContent?.trim() ||
     document
       .querySelector('.jobsearch-JobInfoHeader-title')
       ?.textContent?.trim() ||
+    document.querySelector('h1.icl-u-xs-mb--xs')?.textContent?.trim() ||
     '';
+
+  // If title contains search query pattern, try to find the actual job title
+  if (title.includes(' jobs in ') || title.includes(' job in ')) {
+    // Try to find the actual job title in the card header
+    const jobCard = document.querySelector(
+      '.jobsearch-JobComponent-description',
+    );
+    if (jobCard) {
+      const headerTitle =
+        document
+          .querySelector('h2.jobTitle span[title]')
+          ?.getAttribute('title') ||
+        document.querySelector('h2.jobTitle')?.textContent?.trim();
+      if (headerTitle && !headerTitle.includes(' jobs in ')) {
+        title = headerTitle;
+      }
+    }
+  }
 
   const company =
     document
@@ -331,15 +369,42 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
       ?.textContent?.trim() ||
     '';
 
-  const location = document
-    .querySelector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]')
-    ?.textContent?.trim();
+  // Location - Enhanced selectors for different Indeed layouts
+  let location =
+    document
+      .querySelector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]')
+      ?.textContent?.trim() ||
+    document
+      .querySelector('.jobsearch-JobInfoHeader-subtitle > div')
+      ?.textContent?.trim() ||
+    document
+      .querySelector('.jobsearch-CompanyInfoContainer > div:last-child')
+      ?.textContent?.trim() ||
+    '';
 
-  // Salary on Indeed
+  // If location still not found, try to extract from subtitle area
+  if (!location) {
+    const subtitleElement = document.querySelector(
+      '.jobsearch-JobInfoHeader-subtitle',
+    );
+    if (subtitleElement) {
+      // Get the text and look for location pattern (City, State ZIP)
+      const subtitleText = subtitleElement.textContent || '';
+      const locationMatch = subtitleText.match(
+        /([A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5})/,
+      );
+      if (locationMatch) {
+        location = locationMatch[1].trim();
+      }
+    }
+  }
+
+  // Salary on Indeed - Enhanced selectors
   let salary =
     document
       .querySelector('#salaryInfoAndJobType .salary-snippet-container')
       ?.textContent?.trim() ||
+    document.querySelector('#salaryInfoAndJobType')?.textContent?.trim() ||
     document
       .querySelector('.jobsearch-JobMetadataHeader-item')
       ?.textContent?.trim() ||
@@ -348,15 +413,43 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
       ?.textContent?.trim() ||
     '';
 
+  // Try to find salary in the snippet below company/location
+  if (!salary) {
+    const snippetContainer = document.querySelector(
+      '.jobsearch-JobInfoHeader-subtitle',
+    );
+    if (snippetContainer) {
+      const snippetText = snippetContainer.textContent || '';
+      const foundSalary = findSalaryInText(snippetText);
+      if (foundSalary) {
+        salary = foundSalary;
+      }
+    }
+  }
+
   // Fallback to text scanning if specific selectors fail
   if (!salary) {
     const headerText =
-      document.querySelector('.jobsearch-JobInfoHeader-snippet-container')
-        ?.textContent || '';
+      document.querySelector('.jobsearch-JobInfoHeader')?.textContent || '';
     salary = findSalaryInText(headerText);
   }
 
-  return { jobTitle: title, company, location, salary };
+  // Job Description - Extract HTML formatted description
+  let description =
+    document.querySelector('#jobDescriptionText')?.innerHTML ||
+    document.querySelector('.jobsearch-JobComponent-description')?.innerHTML ||
+    document.querySelector('[id*="jobDescription"]')?.innerHTML ||
+    '';
+
+  // Clean up the HTML description if found
+  if (description) {
+    description = description
+      .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove scripts
+      .replace(/^<[^>]*>Full job description<\/[^>]*>/i, '') // Remove 'Full job description' heading
+      .trim();
+  }
+
+  return { jobTitle: title, company, location, salary, description };
 };
 
 export const getScrapedInfo = (): ScrapedJobInfo => {

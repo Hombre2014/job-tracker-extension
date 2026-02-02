@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchCompanySuggestions, type CompanySuggestion } from '../lib/services';
+import {
+  fetchCompanySuggestions,
+  type CompanySuggestion,
+} from '../lib/services';
 
 interface UseCompanyAutocompleteResult {
   suggestions: CompanySuggestion[];
@@ -27,12 +30,18 @@ export const useCompanyAutocomplete = (
       setError(null);
 
       try {
+        console.log(
+          'useCompanyAutocomplete - fetching for query:',
+          searchQuery,
+        );
         const results = await fetchCompanySuggestions(searchQuery, signal);
+        console.log('useCompanyAutocomplete - results:', results);
         setSuggestions(results);
       } catch (err: any) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
+        console.error('useCompanyAutocomplete - error:', err);
         setError('Failed to fetch company suggestions');
         setSuggestions([]);
       } finally {
