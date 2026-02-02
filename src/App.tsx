@@ -200,6 +200,53 @@ function App() {
         return;
       }
 
+      // First, check if content script is already loaded with a ping
+      const checkAndInjectScript = async (): Promise<boolean> => {
+        return new Promise((resolve) => {
+          chrome.tabs.sendMessage(tab.id!, { action: 'ping' }, (response) => {
+            if (chrome.runtime.lastError || !response?.status) {
+              // Content script not loaded, try to inject it
+              console.log('App: Content script not loaded, injecting...');
+              const manifest = chrome.runtime.getManifest();
+              const scriptFile = manifest.content_scripts?.[0]?.js?.[0];
+
+              if (scriptFile) {
+                chrome.scripting
+                  .executeScript({
+                    target: { tabId: tab.id! },
+                    files: [scriptFile],
+                  })
+                  .then(() => {
+                    console.log('App: Script injected successfully');
+                    // Wait for script to initialize
+                    setTimeout(() => resolve(true), 1200);
+                  })
+                  .catch((err) => {
+                    console.error('App: Injection failed:', err);
+                    resolve(false);
+                  });
+              } else {
+                console.warn('App: Could not find content script in manifest');
+                resolve(false);
+              }
+            } else {
+              console.log('App: Content script already loaded and ready');
+              resolve(true);
+            }
+          });
+        });
+      };
+
+      // Ensure content script is loaded
+      const isReady = await checkAndInjectScript();
+      if (!isReady) {
+        setStatus('error');
+        setErrorMsg(
+          'Failed to load extension on this page. Please refresh the page.',
+        );
+        return;
+      }
+
       const attemptSendMessage = (attempt: number) => {
         chrome.tabs.sendMessage(
           tab.id!,
@@ -207,40 +254,18 @@ function App() {
           async (response: ScrapeResponse) => {
             if (chrome.runtime.lastError) {
               console.log(
-                'App: Content script not responding. Attempting injection...',
+                'App: Content script error on attempt',
+                attempt,
+                ':',
+                chrome.runtime.lastError.message,
               );
 
-              // Only try injection once
-              if (attempt === 0) {
-                try {
-                  // Try to inject the content script manually
-                  const manifest = chrome.runtime.getManifest();
-                  const scriptFile = manifest.content_scripts?.[0]?.js?.[0];
-
-                  if (scriptFile) {
-                    await chrome.scripting.executeScript({
-                      target: { tabId: tab.id! },
-                      files: [scriptFile],
-                    });
-                    console.log('App: Script injected. Retrying in 500ms...');
-                    setTimeout(() => attemptSendMessage(attempt + 1), 500);
-                    return;
-                  } else {
-                    console.warn(
-                      'App: Could not determine content script path from manifest.',
-                    );
-                  }
-                } catch (injectErr) {
-                  console.error('App: Manual injection failed:', injectErr);
-                }
-              }
-
               if (attempt < retries) {
-                setTimeout(() => attemptSendMessage(attempt + 1), 1000);
+                setTimeout(() => attemptSendMessage(attempt + 1), 1500);
               } else {
                 setStatus('error');
                 setErrorMsg(
-                  'The job page needs a refresh to connect to the extension.',
+                  'Unable to scrape job data. Please refresh the page and try again.',
                 );
               }
               return;

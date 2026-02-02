@@ -18,15 +18,41 @@ export interface ScrapedJobInfo {
 const findSalaryInText = (text: string): string => {
   if (!text) return '';
 
-  // Look for currency symbols followed by numbers or 'k'
-  // Examples: $100,000, $50/hr, £60k - £80k, 70.000 €
-  const salaryRegex =
-    /([$£€]\s?\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?|\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?\s?[$£€])(?:\s?[-–—]\s?([$£€]\s?\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?|\d{1,3}(?:[.,]\d{3})*(?:\s?[kK])?\s?[$£€]))?(?:\s?\/\s?(?:hr|hour|yr|year|month|mo))?/gi;
+  // Pattern 1: Look for "Salary:" or "Compensation:" followed by salary info
+  // Examples: "Salary: up to €130,000 gross/year", "Compensation: $100k - $150k"
+  const salaryPrefixRegex = /(?:salary|compensation)\s*:?\s*([^\n]+)/gi;
+  const prefixMatch = salaryPrefixRegex.exec(text);
+  if (prefixMatch && prefixMatch[1]) {
+    const potentialSalary = prefixMatch[1];
+    // Check if it contains currency
+    if (potentialSalary.match(/[€$£]/)) {
+      let salaryText = potentialSalary.trim();
+      // Clean up - remove any trailing text that's not part of salary
+      salaryText = salaryText
+        .split(
+          /\||·|•|Remote|Full-time|Part-time|Contract|We are|We're|Join|The /i,
+        )[0]
+        .trim();
+      return salaryText;
+    }
+  }
 
-  const matches = text.match(salaryRegex);
-  if (matches && matches.length > 0) {
-    // Return the first match that looks like a range or a significant number
-    return matches[0].trim();
+  // Pattern 2: Look for salary ranges first (most complete format)
+  // Examples: €40K/yr - €55K/yr, $100,000 - $150,000
+  const rangeRegex =
+    /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
+  const rangeMatch = rangeRegex.exec(text);
+  if (rangeMatch) {
+    return rangeMatch[0].trim();
+  }
+
+  // Pattern 3: Look for single salary values with descriptors
+  // Examples: up to €130,000 gross/year, $100k/yr
+  const singleSalaryRegex =
+    /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
+  const singleMatch = singleSalaryRegex.exec(text);
+  if (singleMatch) {
+    return singleMatch[0].trim();
   }
 
   return '';
@@ -166,16 +192,87 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     }
   }
 
-  // Salary capture (LinkedIn often hides this in insights or specific spans)
+  // Salary capture - LinkedIn shows salary in multiple possible locations
   let salary = '';
-  const insightEls = container.querySelectorAll(
-    '.job-details-jobs-unified-top-card__job-insight, .jobs-unified-top-card__job-insight',
-  );
-  for (const el of insightEls) {
-    const text = el.textContent?.trim() || '';
-    if (text.includes('$') || text.includes('£') || text.includes('€')) {
-      salary = text;
-      break;
+
+  // Try to find salary in parent containers that might have the complete range
+  const salaryContainerSelectors = [
+    '.job-details-jobs-unified-top-card__job-insight-view-model-secondary',
+    '.job-details-jobs-unified-top-card__job-insight--container',
+    '.jobs-unified-top-card__job-insight-view-model-container',
+  ];
+
+  for (const selector of salaryContainerSelectors) {
+    const element = container.querySelector(selector);
+    if (element) {
+      const text = element.textContent?.trim() || '';
+      if (
+        (text.includes('$') || text.includes('£') || text.includes('€')) &&
+        text.match(/\d+/)
+      ) {
+        // Use findSalaryInText to extract just the salary part
+        const found = findSalaryInText(text);
+        if (found) {
+          salary = found;
+          break;
+        }
+      }
+    }
+  }
+
+  // Try specific compensation-related selectors
+  if (!salary) {
+    const salarySelectors = [
+      '.job-details-jobs-unified-top-card__job-insight--highlight',
+      '.job-details-jobs-unified-top-card__job-insight',
+      '.jobs-unified-top-card__job-insight--highlight',
+      '.jobs-unified-top-card__job-insight',
+      '.compensation__salary',
+      '[data-test-id="compensation-range"]',
+    ];
+
+    for (const selector of salarySelectors) {
+      const elements = container.querySelectorAll(selector);
+      for (const el of elements) {
+        const text = el.textContent?.trim() || '';
+        // Check if text contains currency and typical salary indicators
+        if (
+          (text.includes('$') || text.includes('£') || text.includes('€')) &&
+          text.match(/\d+/)
+        ) {
+          // Check if parent has more complete info
+          const parentText = el.parentElement?.textContent?.trim() || '';
+          if (
+            parentText.includes('-') ||
+            parentText.includes('–') ||
+            parentText.includes('—')
+          ) {
+            // Parent might have the full range, use findSalaryInText
+            const found = findSalaryInText(parentText);
+            if (found) {
+              salary = found;
+              break;
+            }
+          }
+          salary = text;
+          break;
+        }
+      }
+      if (salary) break;
+    }
+  }
+
+  // Fallback to searching all job insights
+  if (!salary) {
+    const insightEls = container.querySelectorAll(
+      '.job-details-jobs-unified-top-card__job-insight, .jobs-unified-top-card__job-insight',
+    );
+    for (const el of insightEls) {
+      const text = el.textContent?.trim() || '';
+      if (text.includes('$') || text.includes('£') || text.includes('€')) {
+        salary = text;
+        break;
+      }
     }
   }
 
@@ -186,6 +283,13 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     salary = findSalaryInText(topCardText);
   }
 
+  // Final fallback: search entire container for salary patterns
+  if (!salary) {
+    const allText = container.textContent || '';
+    const found = findSalaryInText(allText);
+    if (found) salary = found;
+  }
+
   const descriptionRaw = getText([
     '#job-details',
     '.jobs-description__content',
@@ -194,6 +298,15 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   ]);
 
   const description = descriptionRaw.replace(/^About the job\s*/i, '').trim();
+
+  // If salary still not found, try extracting from description (first 500 chars)
+  if (!salary && description) {
+    const descSnippet = description.substring(0, 500);
+    const foundInDesc = findSalaryInText(descSnippet);
+    if (foundInDesc) {
+      salary = foundInDesc;
+    }
+  }
 
   return { jobTitle: title, company, location, description, salary };
 };
@@ -227,8 +340,12 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
     document
       .querySelector('#salaryInfoAndJobType .salary-snippet-container')
       ?.textContent?.trim() ||
-    document.querySelector('.jobsearch-JobMetadataHeader-item')?.textContent?.trim() ||
-    document.querySelector('[data-testid="jobsearch-JobInfoHeader-salary"]')?.textContent?.trim() ||
+    document
+      .querySelector('.jobsearch-JobMetadataHeader-item')
+      ?.textContent?.trim() ||
+    document
+      .querySelector('[data-testid="jobsearch-JobInfoHeader-salary"]')
+      ?.textContent?.trim() ||
     '';
 
   // Fallback to text scanning if specific selectors fail
