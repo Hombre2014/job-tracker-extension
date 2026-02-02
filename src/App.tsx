@@ -1,54 +1,55 @@
-import { useState, useEffect, useCallback } from 'react';
 import './App.css';
-import { CompanyAutocomplete } from './components/CompanyAutocomplete';
-import TextEditor from './components/TextEditor';
+import { useState, useEffect, useCallback } from 'react';
 import {
+  Zap,
+  Edit3,
+  Check,
+  Layout,
+  RefreshCw,
+  AlertCircle,
+  ChevronDown,
+} from 'lucide-react';
+
+import { cn } from './lib/utils';
+import { config } from './lib/config';
+import TextEditor from './components/TextEditor';
+import { refreshAccessToken, storeTokens } from './lib/auth';
+import { CompanyAutocomplete } from './components/CompanyAutocomplete';
+import {
+  type Board,
   fetchBoards,
   fetchBoardColumns,
   type CompanySuggestion,
-  type Board,
   type BoardColumn as Column,
 } from './lib/services';
-import { config } from './lib/config';
-import { refreshAccessToken, storeTokens } from './lib/auth';
-import {
-  ChevronDown,
-  Layout,
-  Check,
-  AlertCircle,
-  RefreshCw,
-  Zap,
-  Edit3,
-} from 'lucide-react';
-import { cn } from './lib/utils';
 
 interface JobInfo {
   company: string;
+  salary?: string;
   jobTitle: string;
+  postUrl?: string;
   location?: string;
   description?: string;
-  postUrl?: string;
-  salary?: string;
   companyData?: CompanySuggestion | null;
 }
 
 interface ScrapeResponse {
+  salary?: string;
   company?: string;
+  postUrl?: string;
   jobTitle?: string;
   location?: string;
   description?: string;
-  postUrl?: string;
-  salary?: string;
 }
 
 function App() {
   const [jobInfo, setJobInfo] = useState<JobInfo>({
+    salary: '',
     company: '',
+    postUrl: '',
     jobTitle: '',
     location: '',
     description: '',
-    postUrl: '',
-    salary: '',
     companyData: null,
   });
 
