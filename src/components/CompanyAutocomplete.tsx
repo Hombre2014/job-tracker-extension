@@ -29,8 +29,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [justSelected, setJustSelected] = useState(false);
-  const [userInteracted, setUserInteracted] = useState(false); 
+  const [userInteracted, setUserInteracted] = useState(false);
 
   const { suggestions, isLoading, error } = useCompanyAutocomplete(value);
 
@@ -48,18 +47,11 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (userInteracted && suggestions.length > 0 && !justSelected) {
-      setIsOpen(true);
-      setSelectedIndex(-1);
-    }
-  }, [suggestions, justSelected, userInteracted]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value);
-    setUserInteracted(true); 
+    setUserInteracted(true);
     setIsOpen(true);
-    setJustSelected(false); 
+    setSelectedIndex(-1);
   };
 
   const handleSelectCompany = (company: CompanySuggestion) => {
@@ -67,8 +59,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
     onCompanySelect(company);
     setIsOpen(false);
     setSelectedIndex(-1);
-    setJustSelected(true); 
-    setUserInteracted(false); 
+    setUserInteracted(false);
     if (inputRef.current) {
       inputRef.current.blur();
     }
@@ -116,8 +107,8 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
           placeholder={placeholder}
           disabled={disabled}
           className={cn(
-            "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all",
-            selectedCompany?.domain ? 'pr-10' : ''
+            'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all',
+            selectedCompany?.domain ? 'pr-10' : '',
           )}
         />
         {selectedCompany?.domain && !isOpen && !isLoading && (
@@ -163,7 +154,9 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
                     size="sm"
                   />
                   <div className="flex-1 overflow-hidden">
-                    <div className="font-semibold text-[13px] truncate">{company.name}</div>
+                    <div className="font-semibold text-[13px] truncate">
+                      {company.name}
+                    </div>
                     <div className="text-[10px] text-slate-400 truncate font-medium">
                       {company.domain}
                     </div>
@@ -178,13 +171,17 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
         </div>
       )}
 
-      {isOpen && !isLoading && value.length >= 2 && suggestions.length === 0 && !error && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl">
-          <div className="px-3 py-4 text-center text-xs text-slate-400 font-medium">
-            No companies found
+      {isOpen &&
+        !isLoading &&
+        value.length >= 2 &&
+        suggestions.length === 0 &&
+        !error && (
+          <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl">
+            <div className="px-3 py-4 text-center text-xs text-slate-400 font-medium">
+              No companies found
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

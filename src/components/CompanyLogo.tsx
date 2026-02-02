@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Building2 } from 'lucide-react';
+
 import { config } from '../lib/config';
 import { cn } from '../lib/utils';
 
@@ -25,6 +26,7 @@ export const CompanyLogo = ({
   className,
 }: CompanyLogoProps) => {
   const [hasError, setHasError] = useState(false);
+  const [prevDomain, setPrevDomain] = useState('');
   const { width, height, iconSize } = sizeMap[size];
 
   // Extract domain from URL if needed
@@ -33,12 +35,15 @@ export const CompanyLogo = ({
     .replace(/^www\./, '')
     .split('/')[0];
 
-  // Reset error state when domain changes
-  useEffect(() => {
+  // Reset error state when domain changes (during render to avoid cascade)
+  if (cleanDomain !== prevDomain) {
+    setPrevDomain(cleanDomain);
     setHasError(false);
-  }, [cleanDomain]);
+  }
 
-  const logoUrl = manualLogoUrl || `https://cdn.brandfetch.io/${cleanDomain}?c=${config.brandfetch.clientId}`;
+  const logoUrl =
+    manualLogoUrl ||
+    `https://cdn.brandfetch.io/${cleanDomain}?c=${config.brandfetch.clientId}`;
 
   if (hasError || !cleanDomain) {
     return (
@@ -57,7 +62,10 @@ export const CompanyLogo = ({
 
   return (
     <div
-      className={cn('relative overflow-hidden rounded flex items-center justify-center', className)}
+      className={cn(
+        'relative overflow-hidden rounded flex items-center justify-center',
+        className,
+      )}
       style={{ width, height }}
     >
       <img

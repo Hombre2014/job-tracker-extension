@@ -91,8 +91,7 @@ function App() {
       );
 
       if (frontendTabs.length > 0) {
-        console.log(`App: Probing ${frontendTabs.length} tabs for fresh tokens...`);
-        let tokenFound = false;
+        console.log(`App: Probing ${frontendTabs.length} potential session tabs...`);
         for (const tab of frontendTabs) {
           if (!tab.id) continue;
 
@@ -100,13 +99,10 @@ function App() {
             tab.id,
             { action: 'getTokens' },
             (response) => {
-              if (tokenFound) return;
               if (chrome.runtime.lastError) {
-                console.log(`App: Tab ${tab.id} is not responding to getTokens.`);
                 return;
               }
               if (response?.accessToken) {
-                tokenFound = true;
                 console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
                 setAccessToken(response.accessToken);
                 chrome.storage.local.set({ accessToken: response.accessToken });
@@ -147,10 +143,17 @@ function App() {
         })
         .catch((err) => {
           console.error('App: Failed to fetch boards:', err);
-          setStatus('error');
-          setErrorMsg(
-            'Failed to load job boards. Please make sure you are logged in to the web app.',
-          );
+          if (err.message?.includes('401')) {
+            console.warn('App: Session expired. Clearing token and re-syncing...');
+            setAccessToken(null);
+            chrome.storage.local.remove('accessToken');
+            syncToken();
+          } else {
+            setStatus('error');
+            setErrorMsg(
+              'Failed to load job boards. Please make sure you are logged in to the web app.',
+            );
+          }
         });
     }
   }, [accessToken]);
@@ -168,6 +171,11 @@ function App() {
         })
         .catch((err) => {
           console.error('App: Failed to fetch columns:', err);
+          if (err.message?.includes('401')) {
+            setAccessToken(null);
+            chrome.storage.local.remove('accessToken');
+            syncToken();
+          }
         });
     }
   }, [accessToken, selectedBoardId]);

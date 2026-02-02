@@ -47,29 +47,47 @@ export interface BoardColumn {
 }
 
 export const fetchBoards = async (token: string): Promise<Board[]> => {
+  const url = `${config.backendUrl}/boards-all`;
+  console.log(`App: Fetching boards from ${url}`);
+  
   try {
-    const response = await fetch(`${config.backendUrl}/boards-all`, {
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await fetch(url, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
     });
-    if (!response.ok) throw new Error('Failed to fetch boards');
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error body');
+      console.error(`App: Boards fetch failed with status ${response.status}:`, errorText);
+      throw new Error(`Server returned ${response.status}`);
+    }
+    
     const data: Board[] = await response.json();
     return data.filter((b) => !b.isArchived);
   } catch (error) {
-    console.error('Error fetching boards:', error);
-    return [];
+    console.error('App: Error in fetchBoards:', error);
+    throw error; // Let the UI handle the error
   }
 };
 
 export const fetchBoardColumns = async (token: string, boardId: string): Promise<BoardColumn[]> => {
+  const url = `${config.backendUrl}/boards/${boardId}`;
   try {
-    const response = await fetch(`${config.backendUrl}/boards/${boardId}`, {
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await fetch(url, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
     });
-    if (!response.ok) throw new Error('Failed to fetch columns');
+    
+    if (!response.ok) throw new Error(`Status ${response.status}`);
+    
     const data = await response.json();
     return data.boardColumns || [];
   } catch (error) {
-    console.error('Error fetching columns:', error);
-    return [];
+    console.error(`App: Error fetching columns for board ${boardId}:`, error);
+    throw error;
   }
 };

@@ -7,12 +7,9 @@ import { getScrapedInfo } from './scrapers';
 
 console.log('🚀 Job Tracker Extension: Content script starting on', window.location.href);
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // Security: Only respond to messages from our own extension
-  if (sender.id && sender.id !== chrome.runtime.id) {
-    return;
-  }
+console.log('🚀 Job Tracker Extension: Content script active on', window.location.host);
 
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   try {
     if (request.action === 'scrapeJobInfo') {
       const jobInfo = getScrapedInfo();
@@ -29,20 +26,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
       const currentOrigin = window.location.host;
       if (!trustedOrigins.includes(currentOrigin)) {
-        sendResponse({ error: 'Unauthorized origin' });
         return;
       }
 
       const accessToken = localStorage.getItem('accessToken');
       const refreshToken = localStorage.getItem('refreshToken');
-      
-      // Do not log token presence or values to the console
       sendResponse({ accessToken, refreshToken });
     } else if (request.action === 'ping') {
       sendResponse({ status: 'ready' });
     }
   } catch (error) {
-    // Log generic error but avoid details in production
     sendResponse({ error: 'Internal error' });
   }
   
