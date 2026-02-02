@@ -12,7 +12,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
     const response = await fetch(`${config.backendUrl}/auth/refresh`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${refreshToken}`,
+        Authorization: `Bearer ${refreshToken}`,
         'Content-Type': 'application/json',
       },
     });
@@ -37,19 +37,40 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
 /**
  * Store tokens in chrome storage
  */
-export function storeTokens(accessToken: string, refreshToken?: string): void {
-  const tokens: { accessToken: string; refreshToken?: string } = { accessToken };
+export async function storeTokens(
+  accessToken: string,
+  refreshToken?: string,
+): Promise<void> {
+  const tokens: { accessToken: string; refreshToken?: string } = {
+    accessToken,
+  };
   if (refreshToken) {
     tokens.refreshToken = refreshToken;
   }
-  chrome.storage.local.set(tokens);
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(tokens, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 /**
  * Clear tokens from chrome storage
  */
-export function clearTokens(): void {
-  chrome.storage.local.remove(['accessToken', 'refreshToken']);
+export async function clearTokens(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.remove(['accessToken', 'refreshToken'], () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 /**

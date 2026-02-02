@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     }
 
     // Fetch logo - use Google's favicon service (most reliable for extensions)
-    const googleFaviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    const googleFaviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
 
     fetch(googleFaviconUrl)
       .then((response) => {

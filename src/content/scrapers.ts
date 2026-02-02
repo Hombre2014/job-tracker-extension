@@ -3,6 +3,42 @@
  * Tries Schema.org, OpenGraph, and site-specific fallback logic.
  */
 
+/**
+ * Sanitize HTML to remove XSS vectors while preserving formatting
+ */
+const sanitizeHTML = (html: string): string => {
+  return html
+    .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove script tags
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gis, '') // Remove iframes
+    .replace(/<object[^>]*>.*?<\/object>/gis, '') // Remove objects
+    .replace(/<embed[^>]*>/gi, '') // Remove embeds
+    .replace(/<form[^>]*>.*?<\/form>/gis, '') // Remove forms
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers
+    .replace(/on\w+\s*=\s*[^\s>]*/gi, '') // Remove unquoted event handlers
+    .replace(/javascript:/gi, '') // Remove javascript: URLs
+    .trim();
+};
+
+/**
+ * Validate if a string is actually a salary (not job type like "Full-time")
+ */
+const isValidSalary = (str: string): boolean => {
+  if (!str) return false;
+
+  // Must contain currency symbol or numbers
+  const hasCurrency = /[€$£¥]/.test(str);
+  const hasNumbers = /\d/.test(str);
+
+  // Reject common job type terms
+  const jobTypeTerms =
+    /^(full-time|part-time|contract|temporary|permanent|intern|internship|freelance|remote|hybrid|on-site)$/i;
+  if (jobTypeTerms.test(str.trim())) {
+    return false;
+  }
+
+  return hasCurrency || hasNumbers;
+};
+
 export interface ScrapedJobInfo {
   company: string;
   jobTitle: string;
@@ -82,7 +118,12 @@ const fromJsonLd = (): Partial<ScrapedJobInfo> | null => {
           if (typeof val === 'number') {
             salary = `${jobData.baseSalary.currency || '$'}${val}`;
           } else if (typeof val === 'object') {
-            salary = `${jobData.baseSalary.currency || '$'}${val.minValue || val.value} - ${val.maxValue || ''}`;
+            const min = val.minValue || val.value;
+            const max = val.maxValue;
+            const currency = jobData.baseSalary.currency || '$';
+            salary = max
+              ? `${currency}${min} - ${currency}${max}`
+              : `${currency}${min}`;
           }
         }
 
@@ -307,8 +348,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   ]);
 
   // Clean up the HTML description
-  const description = descriptionRaw
-    .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove scripts
+  const description = sanitizeHTML(descriptionRaw)
     .replace(/^<[^>]*>About the job<\/[^>]*>/i, '') // Remove 'About the job' header
     .trim();
 
@@ -370,31 +410,71 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
     '';
 
   // Location - Enhanced selectors for different Indeed layouts
-  let location =
-    document
-      .querySelector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]')
-      ?.textContent?.trim() ||
-    document
-      .querySelector('.jobsearch-JobInfoHeader-subtitle > div')
-      ?.textContent?.trim() ||
-    document
-      .querySelector('.jobsearch-CompanyInfoContainer > div:last-child')
-      ?.textContent?.trim() ||
-    '';
+  let location = '';
 
-  // If location still not found, try to extract from subtitle area
+  // Try direct selectors first
+  const locationSelectors = [
+    '[data-testid="jobsearch-JobInfoHeader-companyLocation"]',
+    'div[data-testid="inlineHeader-companyLocation"]',
+    '.jobsearch-JobInfoHeader-subtitle > div:last-child',
+    '.jobsearch-CompanyInfoContainer > div:last-child',
+  ];
+
+  for (const selector of locationSelectors) {
+    const element = document.querySelector(selector);
+    if (element?.textContent?.trim()) {
+      location = element.textContent.trim();
+      break;
+    }
+  }
+
+  // If no direct match, try extracting from header text with pattern matching
   if (!location) {
-    const subtitleElement = document.querySelector(
-      '.jobsearch-JobInfoHeader-subtitle',
-    );
-    if (subtitleElement) {
-      // Get the text and look for location pattern (City, State ZIP)
-      const subtitleText = subtitleElement.textContent || '';
-      const locationMatch = subtitleText.match(
-        /([A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5})/,
+    const headerElement = document.querySelector('.jobsearch-JobInfoHeader');
+    if (headerElement) {
+      const headerText = headerElement.textContent || '';
+
+      // Pattern 1: Remote variations (must come first to capture remote correctly)
+      // Matches: "Remote", "Remote in USA", "Berlin, Germany (Remote)", "EU, Remote", etc.
+      const remoteMatch = headerText.match(
+        /\b((?:[A-Za-z\s]+,?\s*)?(?:Remote|Hybrid|Work from home)(?:\s+in\s+[A-Za-z\s,]+)?)\b/i,
       );
-      if (locationMatch) {
-        location = locationMatch[1].trim();
+      if (remoteMatch) {
+        location = remoteMatch[1].trim();
+      }
+
+      // Pattern 2: City, State ZIP (US format)
+      if (!location) {
+        const usLocationMatch = headerText.match(
+          /([A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5})/,
+        );
+        if (usLocationMatch) {
+          location = usLocationMatch[1].trim();
+        }
+      }
+
+      // Pattern 3: City, State (without ZIP)
+      if (!location) {
+        const stateLocationMatch = headerText.match(
+          /([A-Za-z\s]+,\s*[A-Z]{2})(?:\s|$)/,
+        );
+        if (stateLocationMatch) {
+          location = stateLocationMatch[1].trim();
+        }
+      }
+
+      // Pattern 4: City, Country (international format)
+      if (!location) {
+        const intlLocationMatch = headerText.match(
+          /([A-Za-z\s]+,\s*[A-Za-z\s]+)(?:\s|$)/,
+        );
+        if (intlLocationMatch) {
+          const candidate = intlLocationMatch[1].trim();
+          // Make sure it's not company name or job title
+          if (!candidate.includes(company) && candidate.length < 50) {
+            location = candidate;
+          }
+        }
       }
     }
   }
@@ -434,6 +514,11 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
     salary = findSalaryInText(headerText);
   }
 
+  // Validate salary - reject if it's actually a job type term
+  if (salary && !isValidSalary(salary)) {
+    salary = '';
+  }
+
   // Job Description - Extract HTML formatted description
   let description =
     document.querySelector('#jobDescriptionText')?.innerHTML ||
@@ -443,8 +528,7 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
 
   // Clean up the HTML description if found
   if (description) {
-    description = description
-      .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove scripts
+    description = sanitizeHTML(description)
       .replace(/^<[^>]*>Full job description<\/[^>]*>/i, '') // Remove 'Full job description' heading
       .trim();
   }

@@ -6,7 +6,6 @@ import { cn } from '../lib/utils';
 interface CompanyLogoProps {
   domain: string;
   companyName: string;
-  logoUrl?: string | null; // Keep for compatibility but won't use
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -23,31 +22,44 @@ export const CompanyLogo = ({
   size = 'sm',
   className,
 }: CompanyLogoProps) => {
-  const [hasError, setHasError] = useState(false);
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const { width, height, iconSize } = sizeMap[size];
-
   // Extract domain from URL if needed
   const cleanDomain = domain
     .replace(/^https?:\/\//, '')
     .replace(/^www\./, '')
     .split('/')[0];
 
+  const [hasError, setHasError] = useState(false);
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  // Initialize loading state based on whether we have a domain to fetch
+  const [isLoading, setIsLoading] = useState(!!cleanDomain);
+  const { width, height, iconSize } = sizeMap[size];
+
   // Fetch logo via background script
   useEffect(() => {
     if (!cleanDomain) {
-      setIsLoading(false);
-      return;
+      return; // No need to set loading state - already initialized correctly
     }
 
+    // Reset state when domain changes to clear previous logo data
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasError(false);
     setLogoDataUrl(null);
     setIsLoading(true);
 
+    let isMounted = true;
+
     chrome.runtime.sendMessage(
       { action: 'fetchLogo', domain: cleanDomain },
       (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('Logo fetch failed:', chrome.runtime.lastError.message);
+          if (isMounted) {
+            setIsLoading(false);
+            setHasError(true);
+          }
+          return;
+        }
+        if (!isMounted) return;
         setIsLoading(false);
         if (response?.success && response.dataUrl) {
           setLogoDataUrl(response.dataUrl);
@@ -56,6 +68,10 @@ export const CompanyLogo = ({
         }
       },
     );
+
+    return () => {
+      isMounted = false;
+    };
   }, [cleanDomain]);
 
   if (hasError || !cleanDomain) {

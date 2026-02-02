@@ -5,9 +5,15 @@ import { getScrapedInfo } from './scrapers';
  * Handles communication between the extension popup and the web page.
  */
 
-console.log('🚀 Job Tracker Extension: Content script starting on', window.location.href);
+console.log(
+  '🚀 Job Tracker Extension: Content script starting on',
+  window.location.href,
+);
 
-console.log('🚀 Job Tracker Extension: Content script active on', window.location.host);
+console.log(
+  '🚀 Job Tracker Extension: Content script active on',
+  window.location.host,
+);
 
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   try {
@@ -21,11 +27,12 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         'localhost:3000',
         '127.0.0.1:3001',
         '127.0.0.1:3000',
-        'online-job-trackr.vercel.app'
+        'online-job-trackr.vercel.app',
       ];
-      
+
       const currentOrigin = window.location.host;
       if (!trustedOrigins.includes(currentOrigin)) {
+        sendResponse({ error: 'Unauthorized origin' });
         return;
       }
 
@@ -36,9 +43,10 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       sendResponse({ status: 'ready' });
     }
   } catch (error) {
+    console.error('Content script error:', error);
     sendResponse({ error: 'Internal error' });
   }
-  
+
   return true; // Keep the message channel open for async response
 });
 

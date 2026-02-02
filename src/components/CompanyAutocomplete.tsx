@@ -1,9 +1,10 @@
-import { Check, Loader2, Building2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { CompanyLogo } from './CompanyLogo';
-import { useCompanyAutocomplete } from '../hooks/useCompanyAutocomplete';
-import { type CompanySuggestion } from '../lib/services';
+import { Check, Loader2, Building2 } from 'lucide-react';
+
 import { cn } from '../lib/utils';
+import { CompanyLogo } from './CompanyLogo';
+import { type CompanySuggestion } from '../lib/services';
+import { useCompanyAutocomplete } from '../hooks/useCompanyAutocomplete';
 
 export interface CompanyAutocompleteProps {
   value: string;
@@ -11,8 +12,8 @@ export interface CompanyAutocompleteProps {
   className?: string;
   placeholder?: string;
   onChange: (value: string) => void;
-  onCompanySelect: (company: CompanySuggestion) => void;
   selectedCompany?: CompanySuggestion | null;
+  onCompanySelect: (company: CompanySuggestion) => void;
 }
 
 export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
@@ -22,15 +23,15 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
     className,
     onCompanySelect,
     disabled = false,
-    placeholder = 'Search for a company...',
     selectedCompany = null,
+    placeholder = 'Search for a company...',
   } = props;
+  const hasAutoOpened = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [userInteracted, setUserInteracted] = useState(false);
-  const hasAutoOpened = useRef(false);
 
   const { suggestions, isLoading, error } = useCompanyAutocomplete(value);
 
@@ -49,10 +50,10 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value);
-    setUserInteracted(true);
     setIsOpen(true);
     setSelectedIndex(-1);
+    setUserInteracted(true);
+    onChange(e.target.value);
     hasAutoOpened.current = false; // Reset when user types
   };
 
@@ -62,14 +63,13 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
       value &&
       value.length >= 2 &&
       suggestions.length > 0 &&
-      !selectedCompany &&
       !hasAutoOpened.current &&
+      !selectedCompany &&
       !userInteracted
     ) {
       // Use setTimeout to avoid synchronous setState in effect
       const timer = setTimeout(() => {
         setIsOpen(true);
-        hasAutoOpened.current = false;
         setUserInteracted(true);
         hasAutoOpened.current = true;
       }, 0);
@@ -119,16 +119,16 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
     <div ref={dropdownRef} className={cn('relative', className)}>
       <div className="relative">
         <input
-          ref={inputRef}
           type="text"
           value={value}
-          onChange={handleInputChange}
+          ref={inputRef}
+          disabled={disabled}
           onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          onChange={handleInputChange}
           onFocus={() => {
             if (userInteracted && suggestions.length > 0) setIsOpen(true);
           }}
-          placeholder={placeholder}
-          disabled={disabled}
           className={cn(
             'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all',
             selectedCompany?.domain ? 'pr-10' : '',
@@ -137,10 +137,9 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
         {selectedCompany?.domain && !isOpen && !isLoading && (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
             <CompanyLogo
+              size="sm"
               domain={selectedCompany.domain}
               companyName={selectedCompany.name}
-              logoUrl={selectedCompany.logo}
-              size="sm"
             />
           </span>
         )}
@@ -157,7 +156,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl max-h-55 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl max-h-56 overflow-y-auto">
           <ul className="py-1">
             {suggestions.map((company, index) => (
               <li key={`${company.domain}-${index}`}>
@@ -171,10 +170,9 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
                   )}
                 >
                   <CompanyLogo
+                    size="sm"
                     domain={company.domain}
                     companyName={company.name}
-                    logoUrl={company.logo}
-                    size="sm"
                   />
                   <div className="flex-1 overflow-hidden">
                     <div className="font-semibold text-[13px] truncate">

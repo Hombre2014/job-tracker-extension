@@ -105,7 +105,7 @@ function App() {
           chrome.tabs.sendMessage(
             tab.id,
             { action: 'getTokens' },
-            (response) => {
+            async (response) => {
               if (chrome.runtime.lastError) {
                 return;
               }
@@ -113,7 +113,10 @@ function App() {
                 console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
                 setAccessToken(response.accessToken);
                 setRefreshToken(response.refreshToken || null);
-                storeTokens(response.accessToken, response.refreshToken || '');
+                await storeTokens(
+                  response.accessToken,
+                  response.refreshToken || '',
+                );
               }
             },
           );
@@ -207,7 +210,7 @@ function App() {
           }
         });
     }
-  }, [accessToken, selectedBoardId]);
+  }, [accessToken, selectedBoardId, syncToken]);
 
   const scrapeData = useCallback(async (retries = 3) => {
     setStatus('scanning');
@@ -313,7 +316,8 @@ function App() {
         );
       };
       attemptSendMessage(0);
-    } catch {
+    } catch (err) {
+      console.error('App: Scrape error:', err);
       setStatus('error');
       setErrorMsg('Extension error.');
     }
@@ -338,18 +342,24 @@ function App() {
     if (!selectedBoardId) return;
     setIsSaving(true);
 
-    // Debug: Check what company data we have
-    console.log('=== SAVE DEBUG ===');
-    console.log('Company:', jobInfo.company);
-    console.log('Company Data:', jobInfo.companyData);
     console.log('Domain:', jobInfo.companyData?.domain);
+
+    // Warn if description will be truncated
+    const fullDescription = jobInfo.description || '';
+    if (fullDescription.length > 1000) {
+      console.warn(
+        `Description truncated: ${fullDescription.length} chars → 1000 chars. ` +
+          `${fullDescription.length - 1000} characters will be lost. ` +
+          `Full description will be preserved when you click "Customize".`,
+      );
+    }
 
     const params = new URLSearchParams({
       company: jobInfo.company,
       companyDomain: jobInfo.companyData?.domain || '', // Pass company domain for logo
       title: jobInfo.jobTitle,
       location: jobInfo.location || '',
-      description: (jobInfo.description || '').slice(0, 1000), // Truncate to avoid URL length issues
+      description: fullDescription.slice(0, 1000), // Truncate to avoid URL length issues
       url: jobInfo.postUrl || '',
       salary: jobInfo.salary || '',
       columnId: selectedColumnId,

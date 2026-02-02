@@ -17,6 +17,7 @@ import {
   EditorProvider,
   BtnNumberedList,
   BtnStrikeThrough,
+  type ContentEditableEvent,
 } from 'react-simple-wysiwyg';
 
 interface TextEditorProps {
@@ -25,14 +26,14 @@ interface TextEditorProps {
   placeholder?: string;
 }
 
+// Create alignment buttons (outside component to avoid recreation on each render)
+const BtnAlignLeft = createButton('Align left', '⟨', 'justifyLeft');
+const BtnAlignRight = createButton('Align right', '⟩', 'justifyRight');
+const BtnAlignCenter = createButton('Align center', '≡', 'justifyCenter');
+
 const TextEditor = ({ value, onChange, placeholder }: TextEditorProps) => {
   const [html, setHtml] = useState(value || '');
   const [showPlaceholder, setShowPlaceholder] = useState(!value);
-
-  // Create alignment buttons
-  const BtnAlignLeft = createButton('Align left', '⟨', 'justifyLeft');
-  const BtnAlignRight = createButton('Align right', '⟩', 'justifyRight');
-  const BtnAlignCenter = createButton('Align center', '≡', 'justifyCenter');
 
   // Debounced onChange to avoid too many updates
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,7 +59,7 @@ const TextEditor = ({ value, onChange, placeholder }: TextEditorProps) => {
     }
   }, [value]); // Only depend on value, not html to avoid infinite loop
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: ContentEditableEvent) => {
     const newValue = e.target.value;
     setHtml(newValue);
     setShowPlaceholder(!newValue || newValue.trim() === '');
@@ -78,12 +79,12 @@ const TextEditor = ({ value, onChange, placeholder }: TextEditorProps) => {
   return (
     <div className="w-full">
       <EditorProvider>
-        <div onBlur={handleBlur}>
+        <div>
           <Editor
             value={showPlaceholder && !html ? placeholder : html}
-            onChange={handleChange}
-            onFocus={handleFocus}
             onBlur={handleBlur}
+            onFocus={handleFocus}
+            onChange={handleChange}
             style={{
               backgroundColor: '#fefce8', // yellow-50
               color: '#000000',

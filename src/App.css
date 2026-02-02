@@ -1,13 +1,14 @@
 /* Clean slate for Tailwind-only styling */
+/* Fixed width for Chrome extension popup (matches w-105 in Tailwind = 420px) */
 html,
 body {
   margin: 0;
   padding: 0;
-  width: 480px;
+  width: 420px;
 }
 
 #root {
-  width: 480px;
+  width: 420px;
 }
 
 /* React Simple WYSIWYG Editor Styles */

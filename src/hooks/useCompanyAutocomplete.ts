@@ -37,7 +37,7 @@ export const useCompanyAutocomplete = (
         const results = await fetchCompanySuggestions(searchQuery, signal);
         console.log('useCompanyAutocomplete - results:', results);
         setSuggestions(results);
-      } catch (err: any) {
+      } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
