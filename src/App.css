@@ -1,42 +1,59 @@
+/* Clean slate for Tailwind-only styling */
+/* Fixed width for Chrome extension popup (matches w-105 in Tailwind = 420px) */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 420px;
+}
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 420px;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* React Simple WYSIWYG Editor Styles */
+.rsw-editor {
+  font-family: inherit;
+  line-height: 1.5;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.rsw-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background: white;
+  flex-wrap: wrap;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.rsw-btn {
+  border: 1px solid #e2e8f0;
+  background: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  transition: all 0.2s;
 }
 
-.card {
-  padding: 2em;
+.rsw-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
-.read-the-docs {
-  color: #888;
+.rsw-btn[data-active='true'] {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.rsw-separator {
+  width: 1px;
+  background: #e2e8f0;
+  margin: 0 4px;
 }

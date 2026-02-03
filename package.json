@@ -10,12 +10,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
+    "lodash": "^4.17.23",
+    "lucide-react": "^0.563.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-simple-wysiwyg": "^3.4.1",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.3.0",
     "@eslint/js": "^9.39.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/chrome": "^0.0.306",
+    "@types/lodash": "^4.17.23",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
