@@ -3,9 +3,56 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.1] - 2026-02-02
+## [1.4.2] - 2026-02-03
 
 ### Fixed
+
+- **Token Sync Error Handling**
+  - Added missing `chrome.runtime.lastError` check in token sync storage callback
+  - Prevents silent failures when recovering tokens from chrome.storage
+  - Consistent error handling across all storage operations
+  - Files: `App.tsx`
+
+- **Async Storage in Message Callbacks**
+  - Changed `await storeTokens()` to fire-and-forget pattern with `.catch()` error handling
+  - Prevents popup closure from interrupting storage operations
+  - Storage operations now complete even if popup closes quickly
+  - Better user experience with non-blocking callback execution
+  - Files: `App.tsx`
+
+- **Scrape Retry Mechanism Memory Leak**
+  - Added `isMounted` flag to prevent state updates on unmounted components
+  - Retry timeouts now check mount state before scheduling
+  - Prevents React warnings about updating unmounted components
+  - Proper cleanup function prevents memory leaks
+  - Files: `App.tsx`
+
+- **Token Refresh Error Handling**
+  - Made token clearing smarter - only clears on authentication failures (401/403)
+  - Network errors (timeouts, DNS issues) no longer force re-authentication
+  - Preserves valid tokens during transient network failures
+  - Better UX: users don't need to re-login after temporary network glitches
+  - Files: `lib/auth.ts`
+
+### Removed
+
+- **Unused tokenService.ts Module**
+  - Removed duplicate `lib/tokenService.ts` file (dead code)
+  - Module was not imported anywhere in codebase
+  - Eliminated confusion from having two token management implementations
+  - `lib/auth.ts` remains as the single source of truth for token operations
+  - Files: `lib/tokenService.ts` (deleted)
+
+### Technical Details
+
+- **Storage Operations**: All chrome.storage callbacks now consistently check `chrome.runtime.lastError`
+- **Component Lifecycle**: Added proper cleanup for async operations to prevent memory leaks
+- **Error Resilience**: Token refresh now distinguishes between auth failures and network issues
+- **Code Cleanup**: Removed 91 lines of unused duplicate code
+
+## [1.4.1] - 2026-02-02
+
+### Fixed - 2026-02-02
 
 - **CompanyLogo Component Robustness**
   - Added `chrome.runtime.lastError` check to prevent silent failures when background script is unavailable
@@ -97,7 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added host permissions for Google Static Content (`*.gstatic.com/*`)
   - Critical for logo fetching without CORS restrictions
 
-### Fixed - 2026-02-02
+### Fixed 2026-02-02
 
 - **First-Click Job Capture Issue**
   - Added ping mechanism to check content script readiness
@@ -138,7 +185,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reflects rich text editing capability
   - Files: `App.tsx`
 
-### Technical Details
+### Technical Details - 2026-02-02
 
 - **Background Worker Architecture**
   - Service worker runs in background context with special permissions
@@ -219,5 +266,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.4.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.0-pro...v1.4.1
+[1.4.0-pro]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.3.9-pro...v1.4.0-pro
 [1.3.9-pro]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.3.8-pro...v1.3.9-pro
 [1.3.8-pro]: https://github.com/Hombre2014/job-tracker-extension/releases/tag/v1.3.8-pro
