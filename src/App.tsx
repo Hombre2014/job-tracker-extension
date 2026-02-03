@@ -2,7 +2,6 @@ import './App.css';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Zap,
-  Edit3,
   Check,
   Layout,
   RefreshCw,
@@ -362,7 +361,7 @@ function App() {
     setJobInfo((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = async (autoSave: boolean) => {
+  const handleSave = async () => {
     if (!selectedBoardId) return;
     setIsSaving(true);
 
@@ -370,6 +369,14 @@ function App() {
 
     // Generate unique storage key for this job data
     const storageKey = `job_draft_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Calculate salary value once (reused in both try and catch blocks)
+    const salaryValue =
+      jobInfo.salary &&
+      jobInfo.salary.trim() &&
+      !jobInfo.salary.match(/^[€$£]0*$/)
+        ? jobInfo.salary
+        : '';
 
     // Store full job data in chrome.storage (no truncation)
     const jobData = {
@@ -380,9 +387,9 @@ function App() {
       location: jobInfo.location || '',
       description: fullDescription, // Full description, no truncation
       url: jobInfo.postUrl || '',
-      salary: jobInfo.salary || '',
+      salary: salaryValue,
       columnId: selectedColumnId,
-      autoSave: autoSave,
+      autoSave: true, // Always auto-save (Customize button removed)
       timestamp: Date.now(),
     };
 
@@ -403,17 +410,11 @@ function App() {
       params.set('location', jobInfo.location || '');
       params.set('description', fullDescription.slice(0, 1000)); // Truncated for URL compatibility
       params.set('url', jobInfo.postUrl || '');
-      const salaryValue =
-        jobInfo.salary &&
-        jobInfo.salary.trim() &&
-        !jobInfo.salary.match(/^[€$£]0*$/)
-          ? jobInfo.salary
-          : '';
       if (salaryValue) {
         params.set('salary', salaryValue);
       }
       params.set('columnId', selectedColumnId);
-      params.set('autoSave', autoSave.toString());
+      params.set('autoSave', 'true');
       params.set('jobDataKey', storageKey); // NEW: Storage key for full description
 
       const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
@@ -441,23 +442,23 @@ function App() {
     } catch (error) {
       console.error('Error storing job data:', error);
       // Fallback to old method with truncation if storage fails
-      const params = new URLSearchParams({
-        company: jobInfo.company,
-        companyDomain: jobInfo.companyData?.domain || '',
-        companyLogo: jobInfo.companyData?.logo || '',
-        title: jobInfo.jobTitle,
-        location: jobInfo.location || '',
-        description: fullDescription.slice(0, 1000),
-        url: jobInfo.postUrl || '',
-        salary:
-          jobInfo.salary &&
-          jobInfo.salary.trim() &&
-          !jobInfo.salary.match(/^[€$£]0*$/)
-            ? jobInfo.salary
-            : '',
-        columnId: selectedColumnId,
-        autoSave: autoSave.toString(),
-      });
+      const params = new URLSearchParams();
+      params.set('company', jobInfo.company);
+      params.set('companyDomain', jobInfo.companyData?.domain || '');
+      // Only set companyLogo if it exists (consistent with try block)
+      if (jobInfo.companyData?.logo) {
+        params.set('companyLogo', jobInfo.companyData.logo);
+      }
+      params.set('title', jobInfo.jobTitle);
+      params.set('location', jobInfo.location || '');
+      params.set('description', fullDescription.slice(0, 1000));
+      params.set('url', jobInfo.postUrl || '');
+      if (salaryValue) {
+        params.set('salary', salaryValue);
+      }
+      params.set('columnId', selectedColumnId);
+      params.set('autoSave', 'true');
+
       const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
       window.open(targetUrl, '_blank');
     } finally {
@@ -739,23 +740,15 @@ function App() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              {/* Action Button */}
+              <div className="flex justify-center pt-2">
                 <button
-                  onClick={() => handleSave(true)}
+                  onClick={() => handleSave()}
                   disabled={isSaving || !selectedBoardId}
-                  className="py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
+                  className="w-full max-w-md py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
                 >
                   <Zap size={16} fill="white" strokeWidth={0} />
                   Quick Save
-                </button>
-                <button
-                  onClick={() => handleSave(false)}
-                  disabled={isSaving || !selectedBoardId}
-                  className="py-3.5 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-slate-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
-                >
-                  <Edit3 size={16} />
-                  Customize
                 </button>
               </div>
             </div>
@@ -781,9 +774,7 @@ function App() {
                 : 'Sync with Web App'}
             </span>
           </button>
-          <span className="text-[10px] text-slate-300 font-mono">
-            Build 1.3.8-pro
-          </span>
+          <span className="text-[10px] text-slate-300 font-mono">v1.5.0</span>
         </footer>
       </div>
     </div>

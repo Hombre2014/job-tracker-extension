@@ -80,6 +80,13 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         sendResponse({ accessToken, refreshToken });
       } else if (request.action === 'ping') {
         sendResponse({ status: 'ready' });
+      } else {
+        // Handle unknown actions to prevent hanging message channel
+        console.warn(
+          'Content script: Unknown action received:',
+          request.action,
+        );
+        sendResponse({ error: 'Unknown action' });
       }
     } catch (error) {
       console.error('Content script error:', error);

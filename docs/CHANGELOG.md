@@ -35,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Intelligent detection of Brandfetch placeholder images (≤50x50 pixels)
   - Files: `App.tsx` (extension), `CompanyLogo.tsx` (frontend), `companiesThunk.ts` (frontend)
 
+- **Message Channel Reliability**
+  - Fixed content script message handler to always send response for unknown actions
+  - Prevents message channel from hanging when invalid action is received
+  - Added warning log for unknown actions to aid debugging
+  - File: `content/index.ts`
+
+- **Code Consistency**
+  - Standardized `companyLogo` handling between try/catch blocks in handleSave
+  - Removed duplicate salary validation logic
+  - Salary value now calculated once and reused in both code paths
+  - File: `App.tsx`
+
 ### Added
 
 - **Extension Communication API**
@@ -44,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend can retrieve full job data using `chrome.runtime.sendMessage()`
   - Secure one-time retrieval with automatic cleanup
   - Proper external message listener for web page communication
+  - **Security**: Origin validation with explicit allowlist prevents unauthorized domains from retrieving job data
+  - Allowlist includes production domain and local development servers (localhost:3000, localhost:5173, 127.0.0.1)
+  - Rejected attempts logged with warning for security monitoring
+  - File: `background/index.ts`
 
 - **Company Data Transfer**
   - Extension sends `companyDomain` and `companyLogo` fields to frontend
@@ -52,6 +68,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backend API accepts logo parameter in company creation
 
 ### Changed
+
+- **User Interface Simplification**
+  - Removed "Customize" button (incomplete feature)
+  - Simplified to single "Quick Save" button for auto-save functionality
+  - Button now centered with better visual emphasis
+  - Removed unused `Edit3` icon import
+  - Simplified `handleSave` function - no longer requires `autoSave` parameter
+  - Always sends `autoSave=true` to frontend for consistent behavior
+  - File: `App.tsx`
+
+- **Version Display**
+  - Updated extension version display from "Build 1.3.8-pro" to "v1.5.0"
+  - Version now matches manifest.json for consistency
+  - File: `App.tsx`
 
 - **Production Optimization**
   - Cleaned up verbose console.log statements for production

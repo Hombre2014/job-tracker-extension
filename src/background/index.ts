@@ -103,7 +103,35 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
 // EXTERNAL MESSAGE LISTENER - For messages from web pages (frontend app)
 chrome.runtime.onMessageExternal.addListener(
-  (request, _sender, sendResponse) => {
+  (request, sender, sendResponse) => {
+    // Validate sender origin against allowlist for security
+    const allowedOrigins = [
+      'https://online-job-trackr.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173',
+    ];
+
+    const senderOrigin = sender.origin || sender.url;
+    const isAllowed = allowedOrigins.some((allowed) =>
+      senderOrigin?.startsWith(allowed)
+    );
+
+    if (!isAllowed) {
+      console.warn(
+        'Background: Rejected external message from unauthorized origin:',
+        senderOrigin,
+      );
+      sendResponse({ success: false, error: 'Unauthorized origin' });
+      return true;
+    }
+
+    console.log(
+      'Background: Accepted external message from authorized origin:',
+      senderOrigin,
+    );
+
     // Handle job draft data retrieval from frontend
     if (request.action === 'getJobDraft') {
       const { key } = request;
