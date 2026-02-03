@@ -75,6 +75,10 @@ function App() {
 
     // Baseline: Always check storage first
     chrome.storage.local.get(['accessToken', 'refreshToken'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Storage error:', chrome.runtime.lastError.message);
+        return;
+      }
       if (result.accessToken && !accessToken) {
         console.log('App: Token recovered from storage');
         setAccessToken(result.accessToken);
@@ -114,10 +118,10 @@ function App() {
                 console.log(`App: Token sync SUCCESS via tab ${tab.id}`);
                 setAccessToken(response.accessToken);
                 setRefreshToken(response.refreshToken || null);
-                await storeTokens(
+                storeTokens(
                   response.accessToken,
                   response.refreshToken || '',
-                );
+                ).catch((err) => console.error('Failed to store tokens:', err));
               }
             },
           );
@@ -217,14 +221,19 @@ function App() {
     setStatus('scanning');
     setErrorMsg('');
 
+    // Track mounted state to prevent updates after unmount
+    let isMounted = true;
+
     try {
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
       if (!tab || !tab.id) {
-        setStatus('error');
-        setErrorMsg('No active tab found.');
+        if (isMounted) {
+          setStatus('error');
+          setErrorMsg('No active tab found.');
+        }
         return;
       }
 
@@ -267,6 +276,8 @@ function App() {
 
       // Ensure content script is loaded
       const isReady = await checkAndInjectScript();
+      if (!isMounted) return; // Stop if unmounted
+
       if (!isReady) {
         setStatus('error');
         setErrorMsg(
@@ -288,9 +299,9 @@ function App() {
                 chrome.runtime.lastError.message,
               );
 
-              if (attempt < retries) {
+              if (attempt < retries && isMounted) {
                 setTimeout(() => attemptSendMessage(attempt + 1), 1500);
-              } else {
+              } else if (isMounted) {
                 setStatus('error');
                 setErrorMsg(
                   'Unable to scrape job data. Please refresh the page and try again.',
@@ -298,6 +309,8 @@ function App() {
               }
               return;
             }
+
+            if (!isMounted) return; // Don't update state if unmounted
 
             if (response && (response.company || response.jobTitle)) {
               setJobInfo((prev) => ({
@@ -319,17 +332,27 @@ function App() {
       attemptSendMessage(0);
     } catch (err) {
       console.error('App: Scrape error:', err);
-      setStatus('error');
-      setErrorMsg('Extension error.');
+      if (isMounted) {
+        setStatus('error');
+        setErrorMsg('Extension error.');
+      }
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
     // Use requestAnimationFrame to avoid synchronous state update warnings
-    const handle = requestAnimationFrame(() => {
-      scrapeData();
+    const handle = requestAnimationFrame(async () => {
+      const cleanup = await scrapeData();
+      return cleanup;
     });
-    return () => cancelAnimationFrame(handle);
+    
+    return () => {
+      cancelAnimationFrame(handle);
+    };
   }, [scrapeData]);
 
   const handleInputChange = (

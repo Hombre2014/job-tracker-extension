@@ -26,7 +26,8 @@ export async function refreshAccessToken(
     });
 
     if (!response.ok) {
-      throw new Error(`Token refresh failed: ${response.status}`);
+      const status = response.status;
+      throw new Error(`Token refresh failed: ${status}`);
     }
 
     const data: TokenRefreshResponse = await response.json();
@@ -42,8 +43,20 @@ export async function refreshAccessToken(
     return data;
   } catch (error) {
     console.error('Token refresh error:', error);
-    // Clear tokens on refresh failure
-    await clearTokens();
+    
+    // Only clear tokens on authentication failures (401/403), not network errors
+    if (error instanceof Error) {
+      const isAuthFailure = 
+        error.message.includes('Token refresh failed: 401') ||
+        error.message.includes('Token refresh failed: 403') ||
+        error.message.includes('Invalid token refresh response');
+      
+      if (isAuthFailure) {
+        console.warn('Auth failure detected, clearing tokens');
+        await clearTokens();
+      }
+    }
+    
     throw error;
   }
 }
