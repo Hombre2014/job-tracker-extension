@@ -17,9 +17,13 @@
 
 ## Features
 
-- **Automated Scraping**: Quickly extract job titles, company names, locations, and descriptions from LinkedIn and Indeed.
-- **Easy Integration**: One-click to pre-fill the Job Tracker application form via URL parameters.
+- **Automated Scraping**: Quickly extract job titles, company names, locations, and full descriptions from LinkedIn and Indeed.
+- **Full Description Preservation**: No truncation - complete job descriptions up to 10MB stored securely.
+- **Company Logo Detection**: Automatically captures company logos from Clearbit autocomplete with intelligent fallback.
+- **Smart Salary Filtering**: Filters out promotional text and zero values, only showing real salary information.
+- **Easy Integration**: Seamless data transfer to Job Tracker via secure storage-based communication.
 - **Modern UI**: Clean popup interface built with React and TailwindCSS.
+- **Backward Compatible**: Fallback to URL parameters if storage-based transfer fails.
 
 ## Installation
 

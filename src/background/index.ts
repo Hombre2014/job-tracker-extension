@@ -41,6 +41,113 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
     return true; // Keep channel open for async response
   }
+
+  // Handle job draft data retrieval
+  if (request.action === 'getJobDraft') {
+    console.log(
+      'Background: Received getJobDraft request from:',
+      _sender.origin || _sender.url,
+    );
+    const { key } = request;
+
+    if (!key || typeof key !== 'string') {
+      console.error('Background: Invalid storage key provided:', key);
+      sendResponse({ success: false, error: 'Invalid storage key' });
+      return true; // Changed from false to true - keep channel open
+    }
+
+    console.log(`Background: Attempting to retrieve job draft for key: ${key}`);
+
+    chrome.storage.local.get([key], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error(
+          'Background: Failed to retrieve job draft:',
+          chrome.runtime.lastError,
+        );
+        sendResponse({
+          success: false,
+          error: chrome.runtime.lastError.message,
+        });
+        return;
+      }
+
+      if (result[key]) {
+        console.log(
+          `Background: Successfully retrieved job draft for key: ${key}`,
+        );
+        console.log(
+          `Background: Description length: ${result[key].description?.length || 0} chars`,
+        );
+        sendResponse({ success: true, data: result[key] });
+
+        // Clean up after retrieval (one-time use)
+        chrome.storage.local.remove([key]).catch((err) => {
+          console.error('Background: Failed to clean up job draft:', err);
+        });
+      } else {
+        console.warn(`Background: Job draft not found for key: ${key}`);
+        sendResponse({
+          success: false,
+          error: 'Job draft not found or expired',
+        });
+      }
+    });
+
+    return true; // Keep channel open for async response
+  }
+
+  // If no action matched, return false
+  console.warn('Background: Unknown action received:', request.action);
+  return false;
 });
+
+// EXTERNAL MESSAGE LISTENER - For messages from web pages (frontend app)
+chrome.runtime.onMessageExternal.addListener(
+  (request, _sender, sendResponse) => {
+    // Handle job draft data retrieval from frontend
+    if (request.action === 'getJobDraft') {
+      const { key } = request;
+
+      if (!key || typeof key !== 'string') {
+        console.error('Background: Invalid storage key');
+        sendResponse({ success: false, error: 'Invalid storage key' });
+        return true;
+      }
+
+      chrome.storage.local.get([key], (result) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            'Background: Failed to retrieve job draft:',
+            chrome.runtime.lastError,
+          );
+          sendResponse({
+            success: false,
+            error: chrome.runtime.lastError.message,
+          });
+          return;
+        }
+
+        if (result[key]) {
+          sendResponse({ success: true, data: result[key] });
+
+          // Clean up after retrieval (one-time use)
+          chrome.storage.local.remove([key]).catch((err) => {
+            console.error('Background: Failed to clean up job draft:', err);
+          });
+        } else {
+          console.warn('Background: Job draft not found or expired');
+          sendResponse({
+            success: false,
+            error: 'Job draft not found or expired',
+          });
+        }
+      });
+
+      return true; // Keep channel open for async response
+    }
+
+    return false;
+  },
+);
 
 console.log('Background service worker loaded');

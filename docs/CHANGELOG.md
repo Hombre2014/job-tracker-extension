@@ -3,9 +3,82 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.2] - 2026-02-03
+## [1.5.0] - 2026-02-03
 
 ### Fixed
+
+- **Full Job Description Preservation**
+  - Removed 1000-character truncation limit on job descriptions
+  - Extension now stores full job data in `chrome.storage.local` instead of URL parameters
+  - Passes only a storage key via URL to avoid URL length limitations
+  - Used `chrome.runtime.onMessageExternal` for proper external web page communication
+  - Backend service worker retrieves full data on frontend request
+  - Auto-cleanup of old draft data (>1 hour)
+  - One-time use: draft data is removed after frontend retrieves it
+  - Backward compatible with fallback to URL params if needed
+  - Files: `App.tsx`, `background/index.ts`, `manifest.json`
+  - Documentation: `docs/FRONTEND_INTEGRATION.md`
+
+- **Salary Field Enhancement**
+  - Fixed salary field to remain empty when no salary detected (instead of showing "€0")
+  - Added promotional text filtering to exclude LinkedIn advertisements (e.g., "Try Premium for €0")
+  - Improved salary validation to filter out currency symbols with zero values
+  - Detects and excludes promotional phrases combined with zero amounts
+  - Cleaner URL parameters when salary information is unavailable
+  - Files: `content/scrapers.ts`, `App.tsx`
+
+- **Company Logo Support**
+  - Extension now captures and sends company logo URLs from Clearbit autocomplete
+  - Frontend receives company domain and logo information
+  - Blank/placeholder image detection for companies without real logos
+  - Generic Building2 icon displays when logo is unavailable or invalid
+  - Intelligent detection of Brandfetch placeholder images (≤50x50 pixels)
+  - Files: `App.tsx` (extension), `CompanyLogo.tsx` (frontend), `companiesThunk.ts` (frontend)
+
+### Added
+
+- **Extension Communication API**
+  - Added `externally_connectable` configuration in manifest
+  - Allows frontend application to communicate with extension
+  - New message handler: `getJobDraft` action in background service worker
+  - Frontend can retrieve full job data using `chrome.runtime.sendMessage()`
+  - Secure one-time retrieval with automatic cleanup
+  - Proper external message listener for web page communication
+
+- **Company Data Transfer**
+  - Extension sends `companyDomain` and `companyLogo` fields to frontend
+  - Support for `null` logo values (companies without logos)
+  - Frontend `ExtensionJobData` interface includes `companyLogo` field
+  - Backend API accepts logo parameter in company creation
+
+### Changed
+
+- **Production Optimization**
+  - Cleaned up verbose console.log statements for production
+  - Kept only error and warning logs for debugging
+  - Reduced console noise in both extension and frontend integration
+
+- **Frontend Logo Component**
+  - Replaced Next.js `Image` component with standard `<img>` tag for better error handling
+  - Added intelligent blank image detection based on dimensions
+  - Improved fallback to generic icon when logo fetch fails
+  - Better handling of external image loading errors
+
+## [1.4.3] - 2026-02-03
+
+### Fixed in v1.4.3
+
+- **LinkedIn SPA Navigation Scraping**
+  - Added DOM readiness check before scraping to handle LinkedIn's client-side routing
+  - Content script now waits for page content to load after navigation (up to 2 seconds with retries)
+  - Fixes issue where extension couldn't scrape data until page was manually refreshed
+  - Extension now works immediately after clicking on new job postings without refresh
+  - Improved user experience on LinkedIn's single-page application
+  - Files: `content/index.ts`
+
+## [1.4.2] - 2026-02-03
+
+### Fixed in v1.4.2
 
 - **Token Sync Error Handling**
   - Added missing `chrome.runtime.lastError` check in token sync storage callback
@@ -86,7 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example: "münchen.de" → "m%C3%BCnchen.de"
   - Files: `background/index.ts`
 
-### Changed
+### Changed - 2026-02-02
 
 - **Consistency Improvements**
   - All chrome.storage operations now follow consistent async/await pattern with error checking
@@ -95,7 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.4.0-pro] - 2026-02-02
 
-### Added
+### Added - 2026-02-02
 
 - **Company Logo Display System**
   - Implemented Background Service Worker to fetch company logos via Google Favicon Service
@@ -178,7 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Logos display correctly in Job Info Modal, Job Post cards, and Company tab
   - Files: `App.tsx`
 
-### Changed - 2026-02-02
+### Changed in v1.3.1 - 2026-02-02
 
 - **Description Field Label**
   - Changed from "Job Description (Snippet)" to "Job Description"
@@ -258,14 +331,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Manifest V3**
   - Permissions: `activeTab`, `scripting`, `storage`, `tabs`
   - Host Permissions: LinkedIn, Indeed, and Localhost
-  - Content Scripts: Configured for injection on target job boards
-  - Action: Default popup pointing to `index.html`
+- Content Scripts: Configured for injection on target job boards
+- Action: Default popup pointing to `index.html`
 
 - **Build System**
   - Configured `vite.config.ts` for extension building
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.5.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.3...v1.5.0
+[1.4.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.0-pro...v1.4.1
 [1.4.0-pro]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.3.9-pro...v1.4.0-pro

@@ -349,7 +349,7 @@ function App() {
       const cleanup = await scrapeData();
       return cleanup;
     });
-    
+
     return () => {
       cancelAnimationFrame(handle);
     };
@@ -362,38 +362,107 @@ function App() {
     setJobInfo((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = (autoSave: boolean) => {
+  const handleSave = async (autoSave: boolean) => {
     if (!selectedBoardId) return;
     setIsSaving(true);
 
-    console.log('Domain:', jobInfo.companyData?.domain);
-
-    // Warn if description will be truncated
     const fullDescription = jobInfo.description || '';
-    if (fullDescription.length > 1000) {
-      console.warn(
-        `Description truncated: ${fullDescription.length} chars → 1000 chars. ` +
-          `${fullDescription.length - 1000} characters will be lost. ` +
-          `Full description will be preserved when you click "Customize".`,
-      );
-    }
 
-    const params = new URLSearchParams({
+    // Generate unique storage key for this job data
+    const storageKey = `job_draft_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Store full job data in chrome.storage (no truncation)
+    const jobData = {
       company: jobInfo.company,
-      companyDomain: jobInfo.companyData?.domain || '', // Pass company domain for logo
+      companyDomain: jobInfo.companyData?.domain || '',
+      companyLogo: jobInfo.companyData?.logo || null,
       title: jobInfo.jobTitle,
       location: jobInfo.location || '',
-      description: fullDescription.slice(0, 1000), // Truncate to avoid URL length issues
+      description: fullDescription, // Full description, no truncation
       url: jobInfo.postUrl || '',
       salary: jobInfo.salary || '',
       columnId: selectedColumnId,
-      autoSave: autoSave.toString(),
-    });
+      autoSave: autoSave,
+      timestamp: Date.now(),
+    };
 
-    const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
-    console.log('Opening URL:', targetUrl);
-    window.open(targetUrl, '_blank');
-    setTimeout(() => setIsSaving(false), 1000);
+    try {
+      // Store in chrome.storage.local (has much higher limits than URL params)
+      await chrome.storage.local.set({ [storageKey]: jobData });
+
+      // BACKWARD COMPATIBLE: Send both old params AND storage key
+      // Frontend can use old params immediately, or retrieve full data from storage key
+      const params = new URLSearchParams();
+      params.set('company', jobInfo.company);
+      params.set('companyDomain', jobInfo.companyData?.domain || '');
+      // Only set companyLogo if it exists, otherwise leave it out (null handling)
+      if (jobInfo.companyData?.logo) {
+        params.set('companyLogo', jobInfo.companyData.logo);
+      }
+      params.set('title', jobInfo.jobTitle);
+      params.set('location', jobInfo.location || '');
+      params.set('description', fullDescription.slice(0, 1000)); // Truncated for URL compatibility
+      params.set('url', jobInfo.postUrl || '');
+      const salaryValue =
+        jobInfo.salary &&
+        jobInfo.salary.trim() &&
+        !jobInfo.salary.match(/^[€$£]0*$/)
+          ? jobInfo.salary
+          : '';
+      if (salaryValue) {
+        params.set('salary', salaryValue);
+      }
+      params.set('columnId', selectedColumnId);
+      params.set('autoSave', autoSave.toString());
+      params.set('jobDataKey', storageKey); // NEW: Storage key for full description
+
+      const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
+      window.open(targetUrl, '_blank');
+
+      // Clean up old draft data (older than 1 hour)
+      chrome.storage.local
+        .get(null)
+        .then((items) => {
+          const oneHourAgo = Date.now() - 60 * 60 * 1000;
+          const keysToRemove = Object.keys(items).filter((key) => {
+            if (key.startsWith('job_draft_')) {
+              const item = items[key];
+              return item.timestamp && item.timestamp < oneHourAgo;
+            }
+            return false;
+          });
+          if (keysToRemove.length > 0) {
+            chrome.storage.local.remove(keysToRemove);
+          }
+        })
+        .catch((err) => {
+          console.error('Error cleaning up old drafts:', err);
+        });
+    } catch (error) {
+      console.error('Error storing job data:', error);
+      // Fallback to old method with truncation if storage fails
+      const params = new URLSearchParams({
+        company: jobInfo.company,
+        companyDomain: jobInfo.companyData?.domain || '',
+        companyLogo: jobInfo.companyData?.logo || '',
+        title: jobInfo.jobTitle,
+        location: jobInfo.location || '',
+        description: fullDescription.slice(0, 1000),
+        url: jobInfo.postUrl || '',
+        salary:
+          jobInfo.salary &&
+          jobInfo.salary.trim() &&
+          !jobInfo.salary.match(/^[€$£]0*$/)
+            ? jobInfo.salary
+            : '',
+        columnId: selectedColumnId,
+        autoSave: autoSave.toString(),
+      });
+      const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
+      window.open(targetUrl, '_blank');
+    } finally {
+      setTimeout(() => setIsSaving(false), 1000);
+    }
   };
 
   const selectedBoard = boards.find((b) => b.id === selectedBoardId);
