@@ -4,6 +4,22 @@
 
 The extension now stores full job data (including complete, untruncated descriptions) in `chrome.storage.local` and passes only a storage key via URL parameters.
 
+> **⚠️ IMPORTANT: URL Parameter Fallback Limitations**
+>
+> The extension includes backward-compatible URL parameters, but they have **significant limitations**:
+>
+> - **Description truncated to 1000 characters** (URL length restrictions)
+> - **Security/Privacy risk**: Job data visible in browser history, server logs, analytics
+> - **Not recommended for production use**
+>
+> **Always use the storage-based method** (`jobDataKey` parameter + `chrome.runtime.sendMessage`) for:
+>
+> - Full job descriptions (up to 10MB)
+> - Sensitive data protection
+> - Better user experience
+>
+> The URL fallback exists only for backward compatibility and will be removed in a future version.
+
 ### How It Works
 
 1. **Extension Side**: When user clicks "Save" or "Customize", the extension:
@@ -40,9 +56,15 @@ if (jobDataKey) {
 ```typescript
 const retrieveJobDraftFromExtension = async (key: string) => {
   try {
-    // Get extension ID from environment or detect it
-    const extensionId =
-      process.env.NEXT_PUBLIC_EXTENSION_ID || 'YOUR_EXTENSION_ID';
+    // Get extension ID from environment variable
+    const extensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
+
+    if (!extensionId) {
+      console.error('NEXT_PUBLIC_EXTENSION_ID environment variable is not set');
+      throw new Error(
+        'Extension ID not configured. Please set NEXT_PUBLIC_EXTENSION_ID in your environment variables.',
+      );
+    }
 
     // Request data from extension
     const response = await chrome.runtime.sendMessage(extensionId, {
@@ -128,8 +150,8 @@ To find your extension ID:
 3. Find "Job Tracker Extension" and copy the ID below the name
 4. Add it to your frontend environment variables:
 
-   ```typeScript
-   NEXT_PUBLIC_EXTENSION_ID=your_extension_id_here
+   ```typescript
+   NEXT_PUBLIC_EXTENSION_ID = your_extension_id_here;
    ```
 
 ### Data Structure

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backend service worker retrieves full data on frontend request
   - Auto-cleanup of old draft data (>1 hour)
   - One-time use: draft data is removed after frontend retrieves it
-  - Backward compatible with fallback to URL params if needed
+  - **Note**: Backward-compatible URL parameter fallback exists but is limited (1000-char truncation, security concerns) and deprecated for future removal
   - Files: `App.tsx`, `background/index.ts`, `manifest.json`
   - Documentation: `docs/FRONTEND_INTEGRATION.md`
 
@@ -251,7 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Logos display correctly in Job Info Modal, Job Post cards, and Company tab
   - Files: `App.tsx`
 
-### Changed in v1.3.1 - 2026-02-02
+### Changed - 2026-02-02
 
 - **Description Field Label**
   - Changed from "Job Description (Snippet)" to "Job Description"
