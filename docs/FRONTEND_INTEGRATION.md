@@ -51,7 +51,7 @@ export interface ExtensionMessage {
     location?: string;
     url?: string;
     salary?: string;
-    storageKey: string;
+    storageKey?: string;
   };
 }
 
@@ -115,15 +115,80 @@ useEffect(() => {
     setValue('url', data.url || '');
     setValue('salary', data.salary || '');
 
-    // If storageKey provided, fetch full description
+    // If storageKey provided, fetch full description from extension
     if (data.storageKey) {
-      retrieveFullDescription(data.storageKey);
+      retrieveJobDraftFromExtension(data.storageKey);
     }
   });
 
   return cleanup;
 }, [setValue]);
 ```
+
+## Understanding the Two Integration Approaches
+
+The extension uses **two complementary integration patterns** that work together:
+
+### 1. Message Passing (Primary - Phase 4.5) ✅ Preferred
+
+**When Used:** Extension detects an existing Job Tracker tab (localhost or production)
+
+**How It Works:**
+
+- Extension sends job data via `chrome.tabs.sendMessage` → content script → `window.postMessage`
+- Frontend listens with `initExtensionMessageListener` and receives data immediately
+- No page navigation required - tab is focused and data appears instantly
+
+**Benefits:**
+
+- ✅ Instant tab reuse (no new tabs opened)
+- ✅ No URL pollution
+- ✅ Better UX (seamless experience)
+- ✅ No page reload
+
+### 2. Storage Retrieval (Fallback - Phase 4)
+
+**When Used:** No existing tab found - extension must open a new tab
+
+**How It Works:**
+
+- Extension stores data in `chrome.storage.local` with unique key
+- Opens new tab with URL: `/home/boards/{boardId}/board?jobDataKey=abc123`
+- Frontend checks for `jobDataKey` parameter
+- Frontend retrieves full data via `chrome.runtime.sendMessage(extensionId, {action: 'getJobDraft'})`
+
+**Benefits:**
+
+- ✅ Full description preservation (no truncation)
+- ✅ Secure (one-time use keys)
+- ✅ Works when no tab is open
+
+### How They Work Together
+
+```text
+Extension "Quick Save" clicked
+          ↓
+Check for existing Job Tracker tabs
+          ↓
+     ┌────┴────┐
+     ↓         ↓
+Tab Found   No Tab Found
+     ↓         ↓
+Message     Storage
+Passing  →  Retrieval
+(Primary)   (Fallback)
+```
+
+**Implementation Requirements:**
+
+Your frontend should implement **BOTH** approaches:
+
+1. **Always** initialize message listener in your form component
+2. **Always** check for `jobDataKey` URL parameter on page load
+3. Message passing handles existing tabs automatically
+4. Storage retrieval handles new tab scenarios
+
+Both patterns are necessary for complete extension integration.
 
 ## Retrieving Full Job Data from Extension
 

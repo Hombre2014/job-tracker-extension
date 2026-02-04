@@ -5,6 +5,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.6.0] - 2026-02-04
 
+### Security
+
+- **CRITICAL: Fixed Origin Validation Vulnerability**
+  - Replaced `startsWith()` with exact origin matching using `includes()`
+  - Previous implementation was vulnerable to subdomain attacks (e.g., `https://online-job-trackr.vercel.app.evil.com`)
+  - Now properly extracts and validates exact origins using `new URL().origin`
+  - File: `src/background/index.ts`
+
+- **Enhanced Message Handler Security**
+  - Added origin validation to content script's message acknowledgment handler
+  - Now validates `event.origin` matches expected target origin
+  - Prevents malicious scripts from injecting fake acknowledgments
+  - File: `src/content/index.ts`
+
+### Fixed
+
+- **Tab Reuse Consistency**
+  - Fixed inconsistent `autoSave` parameter handling between tab reuse and new tab paths
+  - Both `sendMessageToTab` and `openNewTabWithParams` now consistently respect `data.autoSave`
+  - Previously hardcoded to `'true'` in tab reuse, now uses actual value from data
+  - File: `src/background/index.ts`
+
+- **Vite Development Server Support**
+  - Added port 5173 (Vite default) to frontend tab filtering logic
+  - Tab filtering now includes `localhost:5173` and `127.0.0.1:5173`
+  - Aligns with external origin allowlist for consistent Vite support
+  - Fixes tab reuse not working when frontend runs on Vite dev server
+  - File: `src/background/index.ts`
+
+- **Dev Mode Detection Logic**
+  - Fixed dev mode detection to check only frontend tabs instead of all tabs
+  - Previously triggered dev mode incorrectly when any localhost tab was open
+  - Now correctly determines dev mode based on actual frontend tab location
+  - Prevents wrong URL usage when unrelated localhost sites are open
+  - File: `src/background/index.ts`
+
+- **Race Condition Protection**
+  - Added timeout clearing when acknowledgment is received
+  - Changed `setTimeout` assignment to `const` declaration for proper initialization
+  - Prevents timeout from firing after acknowledgment already processed
+  - More efficient resource usage
+  - File: `src/content/index.ts`
+
+- **Salary Scraping Improvements**
+  - Enhanced zero-value salary filtering to catch more variations
+  - Now filters `$0/yr`, `€0.00`, `£0 per hour`, etc. (not just exact `$0`)
+  - Prevents promotional/garbage zero-salary data from being saved
+  - More robust regex pattern covers decimals and time period suffixes
+  - File: `src/content/scrapers.ts`
+
+- **Code Quality**
+  - Fixed unnecessary escape character in regex pattern (`\/` → `/`)
+  - File: `src/background/index.ts`
+
 ### Added
 
 - **Tab Reuse with Message Passing (Phase 4.5)**
@@ -42,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Helps developers diagnose issues during development and testing
   - File: `src/background/index.ts`
 
-### Fixed
+### Fixed - 2026-02-04
 
 - **Development Environment Support**
   - Added localhost:3001 to allowed origins for external messages
@@ -69,6 +123,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents race conditions and ensures reliable message delivery
   - File: `src/content/index.ts`
 
+- **Race Condition in Acknowledgment Handler**
+  - Fixed critical bug where `sendResponse()` could be called twice (once on acknowledgment, once on timeout)
+  - Added `responded` flag to ensure only one response is sent per message
+  - Added null check for `event.data` to prevent runtime errors from malformed messages
+  - Respects Chrome messaging API contract (one response per message)
+  - File: `src/content/index.ts`
+
 ### Changed
 
 - **Manifest Content Script Configuration**
@@ -76,6 +137,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Now includes `http://localhost:3000/*` and `http://localhost:3001/*`
   - Ensures content script loads on development environments
   - File: `manifest.json`
+
+### Documentation
+
+- **Frontend Integration Guide Improvements**
+  - Updated `ExtensionMessage` interface documentation to mark `storageKey` as optional
+  - Fixed function name inconsistency: changed `retrieveFullDescription` to `retrieveJobDraftFromExtension` in examples
+  - Added comprehensive section explaining relationship between message passing and storage retrieval approaches
+  - Clarified that both integration patterns are complementary and work together (not alternatives)
+  - Added visual flow diagram showing decision tree between tab reuse and new tab scenarios
+  - Improved implementation requirements checklist for developers
+  - File: `docs/FRONTEND_INTEGRATION.md`
 
 ## [1.5.0] - 2026-02-03
 
@@ -443,6 +515,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.1...v1.4.2

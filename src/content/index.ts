@@ -82,23 +82,34 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         );
 
         // Listen for acknowledgment from the page
+        let responded = false;
+
         const acknowledgmentHandler = (event: MessageEvent) => {
           if (
+            event.origin === targetOrigin &&
+            event.data &&
             event.data.type === 'JOB_DATA_ACK' &&
             event.data.source === 'job-tracker-app'
           ) {
             console.log('Content script: Received acknowledgment from page');
             window.removeEventListener('message', acknowledgmentHandler);
-            sendResponse({ success: true, acknowledged: true });
+            clearTimeout(timeoutId);
+            if (!responded) {
+              responded = true;
+              sendResponse({ success: true, acknowledged: true });
+            }
           }
         };
 
         window.addEventListener('message', acknowledgmentHandler);
 
         // Timeout after 5 seconds if no acknowledgment
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           window.removeEventListener('message', acknowledgmentHandler);
-          sendResponse({ success: true, acknowledged: false });
+          if (!responded) {
+            responded = true;
+            sendResponse({ success: true, acknowledged: false });
+          }
         }, 5000);
       } else if (request.action === 'getTokens') {
         // Security: Only return tokens if we are on a trusted Job Tracker domain

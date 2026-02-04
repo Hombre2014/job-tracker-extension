@@ -115,10 +115,11 @@ chrome.runtime.onMessageExternal.addListener(
       'http://127.0.0.1:5173',
     ];
 
-    const senderOrigin = sender.origin || sender.url;
-    const isAllowed = allowedOrigins.some((allowed) =>
-      senderOrigin?.startsWith(allowed),
-    );
+    const senderOrigin =
+      sender.origin || (sender.url ? new URL(sender.url).origin : undefined);
+    const isAllowed = senderOrigin
+      ? allowedOrigins.includes(senderOrigin)
+      : false;
 
     if (!isAllowed) {
       console.warn(
@@ -220,8 +221,10 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
             url.includes('online-job-trackr.vercel.app') ||
             url.includes('localhost:3000') ||
             url.includes('localhost:3001') ||
+            url.includes('localhost:5173') ||
             url.includes('127.0.0.1:3000') ||
-            url.includes('127.0.0.1:3001')
+            url.includes('127.0.0.1:3001') ||
+            url.includes('127.0.0.1:5173')
           );
         });
 
@@ -233,8 +236,8 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           );
         }
 
-        // Check if we're in development mode (any localhost tab exists)
-        const isDevMode = tabs.some((tab) => {
+        // Check if we're in development mode (frontend tab is on localhost)
+        const isDevMode = frontendTabs.some((tab) => {
           const url = tab.url || '';
           return url.includes('localhost:') || url.includes('127.0.0.1:');
         });
@@ -365,7 +368,7 @@ async function sendMessageToTab(
   if (data.salary) {
     params.set('salary', data.salary);
   }
-  params.set('autoSave', 'true');
+  params.set('autoSave', data.autoSave ? 'true' : 'false');
   params.set('jobDataKey', data.storageKey);
 
   // Determine target URL
@@ -373,17 +376,12 @@ async function sendMessageToTab(
     ? 'http://localhost:3001'
     : 'https://online-job-trackr.vercel.app';
 
-  // Extract board ID from current tab URL
-  const currentUrl = targetTab.url || '';
-  const boardIdMatch = currentUrl.match(/\/boards\/([^/]+)/);
-  const boardId = boardIdMatch ? boardIdMatch[1] : '';
+  // Use the board ID from user's selection
+  const boardId = data.boardId;
 
   if (!boardId) {
-    console.error(
-      'Background: Could not extract board ID from URL:',
-      currentUrl,
-    );
-    throw new Error('Could not extract board ID from tab URL');
+    console.error('Background: No board ID provided in data:', data);
+    throw new Error('Board ID is required');
   }
 
   const targetUrl = `${frontendUrl}/home/boards/${boardId}/board?${params.toString()}`;
