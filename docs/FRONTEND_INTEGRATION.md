@@ -146,19 +146,22 @@ The extension's manifest includes `externally_connectable` to allow your fronten
 The extension implements **origin validation** to prevent unauthorized access to job data:
 
 **Allowed Origins (Hardcoded Allowlist):**
+
 - ✅ `https://online-job-trackr.vercel.app` - Production
 - ✅ `http://localhost:3000` - Next.js dev server
-- ✅ `http://localhost:5173` - Vite dev server  
+- ✅ `http://localhost:5173` - Vite dev server
 - ✅ `http://127.0.0.1:3000` - Alternative localhost
 - ✅ `http://127.0.0.1:5173` - Alternative localhost
 
 **Security Features:**
+
 1. **Explicit allowlist** in background service worker validates sender origin
 2. **Unauthorized attempts** are rejected with error: `"Unauthorized origin"`
 3. **Logging**: Rejected attempts logged for security monitoring
 4. **Defense-in-depth**: Multiple layers (manifest + code validation + one-time keys + expiration)
 
 **Important**: If you deploy to a new domain, you must:
+
 1. Add the domain to `externally_connectable` in `manifest.json`
 2. Add the domain to the `allowedOrigins` array in `background/index.ts`
 3. Rebuild the extension
