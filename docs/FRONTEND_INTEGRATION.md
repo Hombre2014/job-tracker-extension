@@ -1,5 +1,130 @@
 # Frontend Integration Guide
 
+## Tab Reuse with Message Passing (Phase 4.5)
+
+**NEW in v1.6.0**: The extension now reuses existing tabs instead of always opening new ones!
+
+### How It Works
+
+1. **Extension Side**: When user clicks "Save" or "Customize":
+   - Stores full job data in `chrome.storage.local` with a unique key
+   - Sends message to background script: `{ action: 'sendJobData', data: jobData }`
+
+2. **Background Script**:
+   - Queries for existing Job Tracker tabs (production or localhost)
+   - If tab found: Sends message to content script → focuses tab → sends job data
+   - If no tab: Falls back to opening new tab with URL parameters
+
+3. **Content Script**:
+   - Receives `forwardJobData` message from background
+   - Forwards to page using `window.postMessage` with secure origin
+   - Listens for acknowledgment from page
+
+4. **Frontend Page**:
+   - Listens for `JOB_DATA` messages from extension
+   - Validates message source and type
+   - Populates form with received data
+   - Sends acknowledgment back to extension
+
+### Benefits
+
+- ✅ No more tab proliferation (10+ duplicate tabs)
+- ✅ Instant navigation to existing tab
+- ✅ Better user experience
+- ✅ Cleaner browser history
+- ✅ Backward compatible with URL parameters
+
+### Frontend Implementation
+
+The frontend must implement an extension message listener. See example below:
+
+```typescript
+// lib/extensionMessageListener.ts
+export interface ExtensionMessage {
+  type: string;
+  source: string;
+  data: {
+    company: string;
+    companyDomain?: string;
+    companyLogo?: string | null;
+    title: string;
+    location?: string;
+    url?: string;
+    salary?: string;
+    storageKey: string;
+  };
+}
+
+export function initExtensionMessageListener(
+  onMessageReceived: (data: ExtensionMessage['data']) => void,
+): () => void {
+  const messageHandler = (event: MessageEvent) => {
+    // Validate message structure
+    if (
+      !event.data ||
+      event.data.type !== 'JOB_DATA' ||
+      event.data.source !== 'job-tracker-extension'
+    ) {
+      return;
+    }
+
+    const message = event.data as ExtensionMessage;
+
+    // Validate required fields
+    if (!message.data?.company || !message.data?.title) {
+      console.error('Extension message missing required fields');
+      return;
+    }
+
+    console.log('Received job data from extension:', message.data);
+
+    // Send acknowledgment back to extension
+    window.postMessage(
+      {
+        type: 'JOB_DATA_ACK',
+        source: 'job-tracker-app',
+      },
+      window.location.origin,
+    );
+
+    // Call the callback with the data
+    onMessageReceived(message.data);
+  };
+
+  window.addEventListener('message', messageHandler);
+
+  // Return cleanup function
+  return () => {
+    window.removeEventListener('message', messageHandler);
+  };
+}
+```
+
+Usage in your component:
+
+```typescript
+// In your AddJobShortForm or similar component
+import { initExtensionMessageListener } from '@/lib/extensionMessageListener';
+
+useEffect(() => {
+  const cleanup = initExtensionMessageListener((data) => {
+    // Populate form with received data
+    setValue('company', data.company);
+    setValue('title', data.title);
+    setValue('location', data.location || '');
+    setValue('url', data.url || '');
+    setValue('salary', data.salary || '');
+
+    // If storageKey provided, fetch full description
+    if (data.storageKey) {
+      retrieveFullDescription(data.storageKey);
+    }
+  });
+
+  return cleanup;
+}, [setValue]);
+```
+
 ## Retrieving Full Job Data from Extension
 
 The extension now stores full job data (including complete, untruncated descriptions) in `chrome.storage.local` and passes only a storage key via URL parameters.
@@ -20,7 +145,7 @@ The extension now stores full job data (including complete, untruncated descript
 >
 > The URL fallback exists only for backward compatibility and will be removed in a future version.
 
-### How It Works
+### How It Works (Phase 4.5)
 
 1. **Extension Side**: When user clicks "Save" or "Customize", the extension:
    - Stores full job data in `chrome.storage.local` with a unique key like `job_draft_1234567890_abc123`
@@ -31,7 +156,7 @@ The extension now stores full job data (including complete, untruncated descript
    - Request the full data from the extension using `chrome.runtime.sendMessage()`
    - Use the retrieved data to populate the form
 
-### Frontend Implementation
+### Frontend Implementation Example
 
 #### Step 1: Check URL Parameters
 
@@ -232,7 +357,7 @@ const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
 const showGenericIcon = !cleanDomain || hasError || isBlankImage;
 ```
 
-### Benefits
+### Benefits of Extension Integration
 
 ✅ **No truncation** - Full job descriptions are preserved
 ✅ **No URL length limits** - Data stored in chrome.storage has much higher limits (10MB)

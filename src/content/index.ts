@@ -59,6 +59,47 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
         const jobInfo = getScrapedInfo();
         sendResponse(jobInfo);
+      } else if (request.action === 'forwardJobData') {
+        // NEW: Forward job data from background script to the page
+        console.log(
+          'Content script: Received forwardJobData from background, forwarding to page...',
+        );
+
+        // Determine the appropriate target origin
+        const targetOrigin =
+          window.location.origin === 'https://online-job-trackr.vercel.app'
+            ? 'https://online-job-trackr.vercel.app'
+            : window.location.origin; // For localhost/dev environments
+
+        // Forward the message to the page using window.postMessage
+        window.postMessage(
+          {
+            type: 'JOB_DATA',
+            source: 'job-tracker-extension',
+            data: request.data,
+          },
+          targetOrigin,
+        );
+
+        // Listen for acknowledgment from the page
+        const acknowledgmentHandler = (event: MessageEvent) => {
+          if (
+            event.data.type === 'JOB_DATA_ACK' &&
+            event.data.source === 'job-tracker-app'
+          ) {
+            console.log('Content script: Received acknowledgment from page');
+            window.removeEventListener('message', acknowledgmentHandler);
+            sendResponse({ success: true, acknowledged: true });
+          }
+        };
+
+        window.addEventListener('message', acknowledgmentHandler);
+
+        // Timeout after 5 seconds if no acknowledgment
+        setTimeout(() => {
+          window.removeEventListener('message', acknowledgmentHandler);
+          sendResponse({ success: true, acknowledged: false });
+        }, 5000);
       } else if (request.action === 'getTokens') {
         // Security: Only return tokens if we are on a trusted Job Tracker domain
         const trustedOrigins = [

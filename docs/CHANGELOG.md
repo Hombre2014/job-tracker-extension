@@ -3,9 +3,83 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - 2026-02-03
+## [1.6.0] - 2026-02-04
+
+### Added
+
+- **Tab Reuse with Message Passing (Phase 4.5)**
+  - Extension now detects existing Job Tracker tabs before opening new ones
+  - Sends job data via Chrome message passing API to reuse open tabs
+  - Background script checks for frontend tabs and sends messages via content script
+  - Content script forwards messages to page using `window.postMessage` with secure origin validation
+  - Automatically focuses existing tab when found
+  - Falls back to URL parameters if message passing fails or no tab is open
+  - Smart URL detection: uses localhost:3001 in development, production URL otherwise
+  - Files: `src/background/index.ts`, `src/content/index.ts`, `src/App.tsx`
+  - **Benefits**:
+    - Eliminates tab proliferation (no more 10+ duplicate tabs)
+    - Better user experience with instant navigation
+    - Cleaner browser history
+    - Frontend stays in sync with extension actions
+
+- **Automatic Content Script Injection**
+  - Implemented dynamic content script injection for pre-existing tabs
+  - Ping-based detection to check if content script is already loaded
+  - Retry mechanism with 10 attempts (100ms intervals) to wait for script readiness
+  - Automatically injects `assets/index.ts.js` if content script not found
+  - Ensures message passing works even for tabs opened before extension installation/update
+  - File: `src/background/index.ts`
+
+- **Security Enhancements**
+  - Content script now uses specific target origins for `window.postMessage` instead of wildcard `*`
+  - Prevents message interception by malicious scripts
+  - Dynamic origin detection for production vs. development environments
+  - File: `src/content/index.ts`
+
+- **Comprehensive Debug Logging**
+  - Added detailed console logs throughout message passing flow
+  - Logs tab detection, content script status, injection attempts, and message sending
+  - Helps developers diagnose issues during development and testing
+  - File: `src/background/index.ts`
 
 ### Fixed
+
+- **Development Environment Support**
+  - Added localhost:3001 to allowed origins for external messages
+  - Smart fallback URL detection: checks for any localhost tabs to determine environment
+  - Opens localhost:3001 when testing locally, production URL otherwise
+  - Updated manifest.json with port-specific patterns (localhost:3000, localhost:3001)
+  - Files: `src/background/index.ts`, `manifest.json`
+
+- **Content Script Injection Path**
+  - Fixed critical bug: changed injection path from TypeScript source `src/content/index.ts` to built JavaScript `assets/index.ts.js`
+  - Chrome can only inject JavaScript files, not TypeScript source files
+  - Resolves "Could not load file" error that prevented dynamic injection
+  - File: `src/background/index.ts`
+
+- **Company Logo Preservation**
+  - Fixed missing `companyDomain` and `companyLogo` fields in message passing
+  - Updated message structure to include company domain and logo URL
+  - Ensures company logos display correctly in Job Post Modal
+  - Files: `src/background/index.ts`, `src/content/index.ts`
+
+- **Message Acknowledgment**
+  - Implemented 5-second timeout for acknowledgment from frontend
+  - Content script waits for confirmation before resolving promise
+  - Prevents race conditions and ensures reliable message delivery
+  - File: `src/content/index.ts`
+
+### Changed
+
+- **Manifest Content Script Configuration**
+  - Changed from wildcard `http://localhost/*` to specific ports
+  - Now includes `http://localhost:3000/*` and `http://localhost:3001/*`
+  - Ensures content script loads on development environments
+  - File: `manifest.json`
+
+## [1.5.0] - 2026-02-03
+
+### Fixed - 2026-02-03
 
 - **Full Job Description Preservation**
   - Removed 1000-character truncation limit on job descriptions
@@ -47,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Salary value now calculated once and reused in both code paths
   - File: `App.tsx`
 
-### Added
+### Added (2026-02-03)
 
 - **Extension Communication API**
   - Added `externally_connectable` configuration in manifest
@@ -67,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend `ExtensionJobData` interface includes `companyLogo` field
   - Backend API accepts logo parameter in company creation
 
-### Changed
+### Changed (2026-02-03)
 
 - **User Interface Simplification**
   - Removed "Customize" button (incomplete feature)
@@ -281,7 +355,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Logos display correctly in Job Info Modal, Job Post cards, and Company tab
   - Files: `App.tsx`
 
-### Changed - 2026-02-02
+### Changed App.tsx - 2026-02-02
 
 - **Description Field Label**
   - Changed from "Job Description (Snippet)" to "Job Description"

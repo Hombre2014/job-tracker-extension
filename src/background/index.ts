@@ -108,14 +108,16 @@ chrome.runtime.onMessageExternal.addListener(
     const allowedOrigins = [
       'https://online-job-trackr.vercel.app',
       'http://localhost:3000',
+      'http://localhost:3001',
       'http://localhost:5173',
       'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
       'http://127.0.0.1:5173',
     ];
 
     const senderOrigin = sender.origin || sender.url;
     const isAllowed = allowedOrigins.some((allowed) =>
-      senderOrigin?.startsWith(allowed)
+      senderOrigin?.startsWith(allowed),
     );
 
     if (!isAllowed) {
@@ -177,5 +179,260 @@ chrome.runtime.onMessageExternal.addListener(
     return false;
   },
 );
+
+/**
+ * Send job data to an existing Job Tracker tab or open a new one
+ * Implements Phase 4.5: Tab reuse with message passing
+ */
+interface SendJobDataParams {
+  company: string;
+  companyDomain?: string;
+  companyLogo?: string | null;
+  title: string;
+  location?: string;
+  description?: string;
+  url?: string;
+  salary?: string;
+  columnId: string;
+  boardId: string;
+  autoSave?: boolean;
+  storageKey: string;
+}
+
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  if (request.action === 'sendJobData') {
+    const data: SendJobDataParams = request.data;
+    console.log('Background: Received sendJobData request:', data);
+
+    // Check for existing Job Tracker tabs
+    chrome.tabs
+      .query({})
+      .then((tabs) => {
+        console.log('Background: Total tabs found:', tabs.length);
+        console.log(
+          'Background: Tab URLs:',
+          tabs.map((t) => t.url),
+        );
+
+        const frontendTabs = tabs.filter((tab) => {
+          const url = tab.url || '';
+          return (
+            url.includes('online-job-trackr.vercel.app') ||
+            url.includes('localhost:3000') ||
+            url.includes('localhost:3001') ||
+            url.includes('127.0.0.1:3000') ||
+            url.includes('127.0.0.1:3001')
+          );
+        });
+
+        console.log('Background: Frontend tabs found:', frontendTabs.length);
+        if (frontendTabs.length > 0) {
+          console.log(
+            'Background: Frontend tab URLs:',
+            frontendTabs.map((t) => t.url),
+          );
+        }
+
+        // Check if we're in development mode (any localhost tab exists)
+        const isDevMode = tabs.some((tab) => {
+          const url = tab.url || '';
+          return url.includes('localhost:') || url.includes('127.0.0.1:');
+        });
+        console.log('Background: Dev mode detected:', isDevMode);
+
+        if (frontendTabs.length > 0 && frontendTabs[0].id) {
+          // Found existing tab - send message to it
+          const targetTab = frontendTabs[0];
+          const tabId = targetTab.id!; // We know id exists from the condition
+          console.log(
+            'Background: Attempting to reuse tab:',
+            tabId,
+            targetTab.url,
+          );
+
+          // First, check if content script is loaded by sending a ping
+          chrome.tabs.sendMessage(tabId, { action: 'ping' }, (pingResponse) => {
+            console.log(
+              'Background: Ping response:',
+              pingResponse,
+              'Last error:',
+              chrome.runtime.lastError,
+            );
+            if (chrome.runtime.lastError || !pingResponse) {
+              // Content script not loaded - inject it first
+              console.log(
+                'Background: Content script not loaded, injecting...',
+              );
+
+              chrome.scripting
+                .executeScript({
+                  target: { tabId: tabId },
+                  files: ['assets/index.ts.js'],
+                })
+                .then(() => {
+                  console.log('Background: Content script injected');
+                  // Wait for content script to be ready by retrying ping
+                  return waitForContentScriptReady(tabId, 10, 100);
+                })
+                .then(() => {
+                  // Now focus and send the message
+                  return sendMessageToTab(tabId, targetTab, data, isDevMode);
+                })
+                .then(() => {
+                  sendResponse({ success: true, method: 'message' });
+                })
+                .catch((error) => {
+                  console.error('Background: Failed after injection:', error);
+                  openNewTabWithParams(data, isDevMode);
+                  sendResponse({ success: true, method: 'fallback' });
+                });
+            } else {
+              // Content script already loaded - proceed normally
+              sendMessageToTab(tabId, targetTab, data, isDevMode)
+                .then(() => {
+                  sendResponse({ success: true, method: 'message' });
+                })
+                .catch((error) => {
+                  console.error('Background: Failed to send message:', error);
+                  openNewTabWithParams(data, isDevMode);
+                  sendResponse({ success: true, method: 'fallback' });
+                });
+            }
+          });
+        } else {
+          // No existing tab - open new one with URL params
+          console.log('Background: No frontend tab found, opening new tab');
+          openNewTabWithParams(data, isDevMode);
+          sendResponse({ success: true, method: 'new-tab' });
+        }
+      })
+      .catch((error) => {
+        console.error('Background: Tab query failed:', error);
+        // Default to dev mode if query fails (safer for testing)
+        openNewTabWithParams(data, true);
+        sendResponse({ success: true, method: 'error-fallback' });
+      });
+
+    return true; // Keep channel open for async response
+  }
+});
+
+/**
+ * Wait for content script to be ready by retrying ping
+ */
+async function waitForContentScriptReady(
+  tabId: number,
+  maxRetries: number = 10,
+  delayMs: number = 100,
+): Promise<void> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, {
+        action: 'ping',
+      });
+      if (response?.status === 'ready') {
+        console.log(`Background: Content script ready after ${i + 1} attempts`);
+        return; // Success!
+      }
+    } catch {
+      // Script not ready yet, continue retrying
+    }
+    // Wait before next retry
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error('Content script failed to initialize after retries');
+}
+
+/**
+ * Helper: Navigate existing tab to job post URL
+ */
+async function sendMessageToTab(
+  tabId: number,
+  targetTab: chrome.tabs.Tab,
+  data: SendJobDataParams,
+  isDevMode: boolean,
+): Promise<void> {
+  // Build URL with parameters
+  const params = new URLSearchParams();
+  params.set('company', data.company);
+  params.set('companyDomain', data.companyDomain || '');
+  if (data.companyLogo) {
+    params.set('companyLogo', data.companyLogo);
+  }
+  params.set('title', data.title);
+  params.set('location', data.location || '');
+  params.set('url', data.url || '');
+  if (data.salary) {
+    params.set('salary', data.salary);
+  }
+  params.set('autoSave', 'true');
+  params.set('jobDataKey', data.storageKey);
+
+  // Determine target URL
+  const frontendUrl = isDevMode
+    ? 'http://localhost:3001'
+    : 'https://online-job-trackr.vercel.app';
+
+  // Extract board ID from current tab URL
+  const currentUrl = targetTab.url || '';
+  const boardIdMatch = currentUrl.match(/\/boards\/([^/]+)/);
+  const boardId = boardIdMatch ? boardIdMatch[1] : '';
+
+  if (!boardId) {
+    console.error(
+      'Background: Could not extract board ID from URL:',
+      currentUrl,
+    );
+    throw new Error('Could not extract board ID from tab URL');
+  }
+
+  const targetUrl = `${frontendUrl}/home/boards/${boardId}/board?${params.toString()}`;
+
+  // Navigate the existing tab to the new URL
+  await chrome.tabs.update(tabId, { url: targetUrl, active: true });
+
+  if (targetTab.windowId) {
+    await chrome.windows.update(targetTab.windowId, { focused: true });
+  }
+
+  console.log('Background: Navigated existing tab to:', targetUrl);
+}
+
+/**
+ * Fallback: Open new tab with URL parameters
+ */
+function openNewTabWithParams(data: SendJobDataParams, isDevMode: boolean) {
+  const params = new URLSearchParams();
+  params.set('company', data.company);
+  params.set('companyDomain', data.companyDomain || '');
+  if (data.companyLogo) {
+    params.set('companyLogo', data.companyLogo);
+  }
+  params.set('title', data.title);
+  params.set('location', data.location || '');
+  params.set('description', (data.description || '').slice(0, 1000));
+  params.set('url', data.url || '');
+  if (data.salary) {
+    params.set('salary', data.salary);
+  }
+  params.set('columnId', data.columnId);
+  params.set('autoSave', data.autoSave ? 'true' : 'false');
+  params.set('jobDataKey', data.storageKey);
+
+  // Use localhost in development, production otherwise
+  const frontendUrl = isDevMode
+    ? 'http://localhost:3001'
+    : 'https://online-job-trackr.vercel.app';
+
+  console.log(
+    `Background: Opening new tab with ${isDevMode ? 'localhost:3001' : 'production'} URL`,
+  );
+
+  const targetUrl = `${frontendUrl}/home/boards/${data.boardId}/board?${params.toString()}`;
+
+  chrome.tabs.create({ url: targetUrl }).catch((error) => {
+    console.error('Background: Failed to open new tab:', error);
+  });
+}
 
 console.log('Background service worker loaded');
