@@ -54,6 +54,26 @@ export interface ScrapedJobInfo {
 const findSalaryInText = (text: string): string => {
   if (!text) return '';
 
+  /**
+   * Check if extracted salary is promotional/invalid
+   */
+  const isPromotionalSalary = (salary: string): boolean => {
+    if (!salary) return false;
+
+    // Exclude exactly €0, $0, £0
+    if (salary.match(/^[€$£]\s?0+$/)) return true;
+
+    // Exclude promotional phrases (must contain the promotional text AND a zero amount)
+    const promotionalPatterns = [
+      /try\s+premium.*[€$£]\s?0/i, // "Try Premium for €0"
+      /premium\s+for\s+[€$£]\s?0/i, // "Premium for €0"
+      /free\s+trial.*[€$£]\s?0/i, // "Free trial for €0"
+      /sign\s+up.*[€$£]\s?0/i, // "Sign up for €0"
+    ];
+
+    return promotionalPatterns.some((pattern) => pattern.test(salary));
+  };
+
   // Pattern 1: Look for "Salary:" or "Compensation:" followed by salary info
   // Examples: "Salary: up to €130,000 gross/year", "Compensation: $100k - $150k"
   const salaryPrefixRegex = /(?:salary|compensation)\s*:?\s*([^\n]+)/gi;
@@ -69,17 +89,24 @@ const findSalaryInText = (text: string): string => {
           /\||·|•|Remote|Full-time|Part-time|Contract|We are|We're|Join|The /i,
         )[0]
         .trim();
-      return salaryText;
+
+      // Check if it's promotional before returning
+      if (!isPromotionalSalary(salaryText)) {
+        return salaryText;
+      }
     }
   }
 
   // Pattern 2: Look for salary ranges first (most complete format)
-  // Examples: €40K/yr - €55K/yr, $100,000 - $150,000
+  // Examples: €40K/yr - €55K/yr, $100,000 - $150,000, €85K - €100K
   const rangeRegex =
     /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
   const rangeMatch = rangeRegex.exec(text);
   if (rangeMatch) {
-    return rangeMatch[0].trim();
+    const salaryText = rangeMatch[0].trim();
+    if (!isPromotionalSalary(salaryText)) {
+      return salaryText;
+    }
   }
 
   // Pattern 3: Look for single salary values with descriptors
@@ -88,7 +115,10 @@ const findSalaryInText = (text: string): string => {
     /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
   const singleMatch = singleSalaryRegex.exec(text);
   if (singleMatch) {
-    return singleMatch[0].trim();
+    const salaryText = singleMatch[0].trim();
+    if (!isPromotionalSalary(salaryText)) {
+      return salaryText;
+    }
   }
 
   return '';

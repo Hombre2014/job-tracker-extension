@@ -4,6 +4,16 @@
 
 This document explains the technical architecture of the company logo fetching system in the Job Tracker browser extension. This system was implemented to overcome Chrome extension security restrictions that prevent direct external image loading in extension popups.
 
+## Latest Updates (v1.5.0)
+
+The logo system now integrates with the frontend application:
+
+- **Logo Transfer**: Company data is passed to the frontend via `companyDomain` and `companyLogo` fields in job draft data
+- **Frontend Integration**: Logos are stored in the backend and displayed in the job tracker interface
+- **Blank Image Detection**: Frontend implements intelligent detection of Brandfetch placeholder images (40x40 blanks)
+- **Fallback Icon**: Generic Building2 icon displays when logos are unavailable or invalid
+- **See also**: [FRONTEND_INTEGRATION.md](./FRONTEND_INTEGRATION.md) for frontend-specific implementation details
+
 ## Table of Contents
 
 1. [The Problem](#the-problem)
@@ -593,6 +603,6 @@ This pattern can be applied to any Chrome extension that needs to fetch and disp
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** February 2, 2026  
+**Document Version:** 1.5.0  
+**Last Updated:** February 3, 2026  
 **Author:** Job Tracker Development Team
