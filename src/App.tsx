@@ -389,36 +389,33 @@ function App() {
       url: jobInfo.postUrl || '',
       salary: salaryValue,
       columnId: selectedColumnId,
-      autoSave: true, // Always auto-save (Customize button removed)
+      boardId: selectedBoardId,
+      autoSave: true, // Always auto-save
       timestamp: Date.now(),
+      storageKey: storageKey,
     };
 
     try {
       // Store in chrome.storage.local (has much higher limits than URL params)
       await chrome.storage.local.set({ [storageKey]: jobData });
 
-      // BACKWARD COMPATIBLE: Send both old params AND storage key
-      // Frontend can use old params immediately, or retrieve full data from storage key
-      const params = new URLSearchParams();
-      params.set('company', jobInfo.company);
-      params.set('companyDomain', jobInfo.companyData?.domain || '');
-      // Only set companyLogo if it exists, otherwise leave it out (null handling)
-      if (jobInfo.companyData?.logo) {
-        params.set('companyLogo', jobInfo.companyData.logo);
-      }
-      params.set('title', jobInfo.jobTitle);
-      params.set('location', jobInfo.location || '');
-      params.set('description', fullDescription.slice(0, 1000)); // Truncated for URL compatibility
-      params.set('url', jobInfo.postUrl || '');
-      if (salaryValue) {
-        params.set('salary', salaryValue);
-      }
-      params.set('columnId', selectedColumnId);
-      params.set('autoSave', 'true');
-      params.set('jobDataKey', storageKey); // NEW: Storage key for full description
-
-      const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
-      window.open(targetUrl, '_blank');
+      // Send message to background script to handle tab detection and message passing
+      chrome.runtime.sendMessage(
+        {
+          action: 'sendJobData',
+          data: jobData,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              'Failed to send message to background:',
+              chrome.runtime.lastError,
+            );
+          } else {
+            console.log('Job data sent via:', response?.method);
+          }
+        },
+      );
 
       // Clean up old draft data (older than 1 hour)
       chrome.storage.local
@@ -441,26 +438,16 @@ function App() {
         });
     } catch (error) {
       console.error('Error storing job data:', error);
-      // Fallback to old method with truncation if storage fails
-      const params = new URLSearchParams();
-      params.set('company', jobInfo.company);
-      params.set('companyDomain', jobInfo.companyData?.domain || '');
-      // Only set companyLogo if it exists (consistent with try block)
-      if (jobInfo.companyData?.logo) {
-        params.set('companyLogo', jobInfo.companyData.logo);
-      }
-      params.set('title', jobInfo.jobTitle);
-      params.set('location', jobInfo.location || '');
-      params.set('description', fullDescription.slice(0, 1000));
-      params.set('url', jobInfo.postUrl || '');
-      if (salaryValue) {
-        params.set('salary', salaryValue);
-      }
-      params.set('columnId', selectedColumnId);
-      params.set('autoSave', 'true');
-
-      const targetUrl = `${config.frontendUrl}/home/boards/${selectedBoardId}/board?${params.toString()}`;
-      window.open(targetUrl, '_blank');
+      // Fallback: send message anyway, background will use URL params
+      chrome.runtime.sendMessage(
+        {
+          action: 'sendJobData',
+          data: jobData,
+        },
+        (response) => {
+          console.log('Fallback job data sent via:', response?.method);
+        },
+      );
     } finally {
       setTimeout(() => setIsSaving(false), 1000);
     }

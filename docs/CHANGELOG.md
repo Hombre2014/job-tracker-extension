@@ -3,9 +3,155 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - 2026-02-03
+## [1.6.0] - 2026-02-04
+
+### Security
+
+- **CRITICAL: Fixed Origin Validation Vulnerability**
+  - Replaced `startsWith()` with exact origin matching using `includes()`
+  - Previous implementation was vulnerable to subdomain attacks (e.g., `https://online-job-trackr.vercel.app.evil.com`)
+  - Now properly extracts and validates exact origins using `new URL().origin`
+  - File: `src/background/index.ts`
+
+- **Enhanced Message Handler Security**
+  - Added origin validation to content script's message acknowledgment handler
+  - Now validates `event.origin` matches expected target origin
+  - Prevents malicious scripts from injecting fake acknowledgments
+  - File: `src/content/index.ts`
 
 ### Fixed
+
+- **Tab Reuse Consistency**
+  - Fixed inconsistent `autoSave` parameter handling between tab reuse and new tab paths
+  - Both `sendMessageToTab` and `openNewTabWithParams` now consistently respect `data.autoSave`
+  - Previously hardcoded to `'true'` in tab reuse, now uses actual value from data
+  - File: `src/background/index.ts`
+
+- **Vite Development Server Support**
+  - Added port 5173 (Vite default) to frontend tab filtering logic
+  - Tab filtering now includes `localhost:5173` and `127.0.0.1:5173`
+  - Aligns with external origin allowlist for consistent Vite support
+  - Fixes tab reuse not working when frontend runs on Vite dev server
+  - File: `src/background/index.ts`
+
+- **Dev Mode Detection Logic**
+  - Fixed dev mode detection to check only frontend tabs instead of all tabs
+  - Previously triggered dev mode incorrectly when any localhost tab was open
+  - Now correctly determines dev mode based on actual frontend tab location
+  - Prevents wrong URL usage when unrelated localhost sites are open
+  - File: `src/background/index.ts`
+
+- **Race Condition Protection**
+  - Added timeout clearing when acknowledgment is received
+  - Changed `setTimeout` assignment to `const` declaration for proper initialization
+  - Prevents timeout from firing after acknowledgment already processed
+  - More efficient resource usage
+  - File: `src/content/index.ts`
+
+- **Salary Scraping Improvements**
+  - Enhanced zero-value salary filtering to catch more variations
+  - Now filters `$0/yr`, `€0.00`, `£0 per hour`, etc. (not just exact `$0`)
+  - Prevents promotional/garbage zero-salary data from being saved
+  - More robust regex pattern covers decimals and time period suffixes
+  - File: `src/content/scrapers.ts`
+
+- **Code Quality**
+  - Fixed unnecessary escape character in regex pattern (`\/` → `/`)
+  - File: `src/background/index.ts`
+
+### Added
+
+- **Tab Reuse with Message Passing (Phase 4.5)**
+  - Extension now detects existing Job Tracker tabs before opening new ones
+  - Sends job data via Chrome message passing API to reuse open tabs
+  - Background script checks for frontend tabs and sends messages via content script
+  - Content script forwards messages to page using `window.postMessage` with secure origin validation
+  - Automatically focuses existing tab when found
+  - Falls back to URL parameters if message passing fails or no tab is open
+  - Smart URL detection: uses localhost:3001 in development, production URL otherwise
+  - Files: `src/background/index.ts`, `src/content/index.ts`, `src/App.tsx`
+  - **Benefits**:
+    - Eliminates tab proliferation (no more 10+ duplicate tabs)
+    - Better user experience with instant navigation
+    - Cleaner browser history
+    - Frontend stays in sync with extension actions
+
+- **Automatic Content Script Injection**
+  - Implemented dynamic content script injection for pre-existing tabs
+  - Ping-based detection to check if content script is already loaded
+  - Retry mechanism with 10 attempts (100ms intervals) to wait for script readiness
+  - Automatically injects `assets/index.ts.js` if content script not found
+  - Ensures message passing works even for tabs opened before extension installation/update
+  - File: `src/background/index.ts`
+
+- **Security Enhancements**
+  - Content script now uses specific target origins for `window.postMessage` instead of wildcard `*`
+  - Prevents message interception by malicious scripts
+  - Dynamic origin detection for production vs. development environments
+  - File: `src/content/index.ts`
+
+- **Comprehensive Debug Logging**
+  - Added detailed console logs throughout message passing flow
+  - Logs tab detection, content script status, injection attempts, and message sending
+  - Helps developers diagnose issues during development and testing
+  - File: `src/background/index.ts`
+
+### Fixed - 2026-02-04
+
+- **Development Environment Support**
+  - Added localhost:3001 to allowed origins for external messages
+  - Smart fallback URL detection: checks for any localhost tabs to determine environment
+  - Opens localhost:3001 when testing locally, production URL otherwise
+  - Updated manifest.json with port-specific patterns (localhost:3000, localhost:3001)
+  - Files: `src/background/index.ts`, `manifest.json`
+
+- **Content Script Injection Path**
+  - Fixed critical bug: changed injection path from TypeScript source `src/content/index.ts` to built JavaScript `assets/index.ts.js`
+  - Chrome can only inject JavaScript files, not TypeScript source files
+  - Resolves "Could not load file" error that prevented dynamic injection
+  - File: `src/background/index.ts`
+
+- **Company Logo Preservation**
+  - Fixed missing `companyDomain` and `companyLogo` fields in message passing
+  - Updated message structure to include company domain and logo URL
+  - Ensures company logos display correctly in Job Post Modal
+  - Files: `src/background/index.ts`, `src/content/index.ts`
+
+- **Message Acknowledgment**
+  - Implemented 5-second timeout for acknowledgment from frontend
+  - Content script waits for confirmation before resolving promise
+  - Prevents race conditions and ensures reliable message delivery
+  - File: `src/content/index.ts`
+
+- **Race Condition in Acknowledgment Handler**
+  - Fixed critical bug where `sendResponse()` could be called twice (once on acknowledgment, once on timeout)
+  - Added `responded` flag to ensure only one response is sent per message
+  - Added null check for `event.data` to prevent runtime errors from malformed messages
+  - Respects Chrome messaging API contract (one response per message)
+  - File: `src/content/index.ts`
+
+### Changed
+
+- **Manifest Content Script Configuration**
+  - Changed from wildcard `http://localhost/*` to specific ports
+  - Now includes `http://localhost:3000/*` and `http://localhost:3001/*`
+  - Ensures content script loads on development environments
+  - File: `manifest.json`
+
+### Documentation
+
+- **Frontend Integration Guide Improvements**
+  - Updated `ExtensionMessage` interface documentation to mark `storageKey` as optional
+  - Fixed function name inconsistency: changed `retrieveFullDescription` to `retrieveJobDraftFromExtension` in examples
+  - Added comprehensive section explaining relationship between message passing and storage retrieval approaches
+  - Clarified that both integration patterns are complementary and work together (not alternatives)
+  - Added visual flow diagram showing decision tree between tab reuse and new tab scenarios
+  - Improved implementation requirements checklist for developers
+  - File: `docs/FRONTEND_INTEGRATION.md`
+
+## [1.5.0] - 2026-02-03
+
+### Fixed - 2026-02-03
 
 - **Full Job Description Preservation**
   - Removed 1000-character truncation limit on job descriptions
@@ -47,7 +193,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Salary value now calculated once and reused in both code paths
   - File: `App.tsx`
 
-### Added
+### Added (2026-02-03)
 
 - **Extension Communication API**
   - Added `externally_connectable` configuration in manifest
@@ -67,7 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend `ExtensionJobData` interface includes `companyLogo` field
   - Backend API accepts logo parameter in company creation
 
-### Changed
+### Changed (2026-02-03)
 
 - **User Interface Simplification**
   - Removed "Customize" button (incomplete feature)
@@ -281,7 +427,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Logos display correctly in Job Info Modal, Job Post cards, and Company tab
   - Files: `App.tsx`
 
-### Changed - 2026-02-02
+### Changed App.tsx - 2026-02-02
 
 - **Description Field Label**
   - Changed from "Job Description (Snippet)" to "Job Description"
@@ -369,6 +515,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.1...v1.4.2

@@ -60,8 +60,13 @@ const findSalaryInText = (text: string): string => {
   const isPromotionalSalary = (salary: string): boolean => {
     if (!salary) return false;
 
-    // Exclude exactly €0, $0, £0
-    if (salary.match(/^[€$£]\s?0+$/)) return true;
+    // Exclude zero-value salaries (€0, $0, £0, €0/yr, $0.00, etc.)
+    if (
+      salary.match(
+        /^[€$£]\s?0+(?:[.,]0+)?(?:\s*\/?\s*(?:yr|year|hour|hr|mo|month|per\s+\w+))?$/i,
+      )
+    )
+      return true;
 
     // Exclude promotional phrases (must contain the promotional text AND a zero amount)
     const promotionalPatterns = [
@@ -76,7 +81,8 @@ const findSalaryInText = (text: string): string => {
 
   // Pattern 1: Look for "Salary:" or "Compensation:" followed by salary info
   // Examples: "Salary: up to €130,000 gross/year", "Compensation: $100k - $150k"
-  const salaryPrefixRegex = /(?:salary|compensation)\s*:?\s*([^\n]+)/gi;
+  const salaryPrefixRegex =
+    /(?:salary|compensation|pay|rate|remuneration|package)\s*:?\s*([^\n]+)/gi;
   const prefixMatch = salaryPrefixRegex.exec(text);
   if (prefixMatch && prefixMatch[1]) {
     const potentialSalary = prefixMatch[1];
@@ -97,25 +103,31 @@ const findSalaryInText = (text: string): string => {
     }
   }
 
-  // Pattern 2: Look for salary ranges first (most complete format)
-  // Examples: €40K/yr - €55K/yr, $100,000 - $150,000, €85K - €100K
-  const rangeRegex =
-    /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
-  const rangeMatch = rangeRegex.exec(text);
-  if (rangeMatch) {
-    const salaryText = rangeMatch[0].trim();
+  // Pattern 2: Look for salary ranges WITH CONTEXT (must have salary-related keywords nearby)
+  // Examples: "salary €40K/yr - €55K/yr", "pay: $100,000 - $150,000"
+  const contextualRangeRegex =
+    /(?:salary|compensation|pay|rate|remuneration|package|earning|wage).{0,50}?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
+  const contextualRangeMatch = contextualRangeRegex.exec(text);
+  if (contextualRangeMatch) {
+    const salaryText =
+      `${contextualRangeMatch[1]} - ${contextualRangeMatch[2]}`.trim();
     if (!isPromotionalSalary(salaryText)) {
       return salaryText;
     }
   }
 
-  // Pattern 3: Look for single salary values with descriptors
-  // Examples: up to €130,000 gross/year, $100k/yr
-  const singleSalaryRegex =
-    /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
-  const singleMatch = singleSalaryRegex.exec(text);
-  if (singleMatch) {
-    const salaryText = singleMatch[0].trim();
+  // Pattern 3: Look for single salary values WITH CONTEXT
+  // Examples: "salary up to €130,000 gross/year", "pay: $100k/yr"
+  const contextualSingleRegex =
+    /(?:salary|compensation|pay|rate|remuneration|package|earning|wage).{0,50}?(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
+  const contextualSingleMatch = contextualSingleRegex.exec(text);
+  if (contextualSingleMatch) {
+    const salaryText = contextualSingleMatch[0]
+      .replace(
+        /(?:salary|compensation|pay|rate|remuneration|package|earning|wage)\s*:?\s*/i,
+        '',
+      )
+      .trim();
     if (!isPromotionalSalary(salaryText)) {
       return salaryText;
     }
