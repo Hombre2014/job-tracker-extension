@@ -175,8 +175,8 @@ To find your extension ID:
 3. Find "Job Tracker Extension" and copy the ID below the name
 4. Add it to your frontend environment variables:
 
-   ```typescript
-   NEXT_PUBLIC_EXTENSION_ID = your_extension_id_here;
+   ```text
+   NEXT_PUBLIC_EXTENSION_ID=your_extension_id_here
    ```
 
 ### Data Structure
