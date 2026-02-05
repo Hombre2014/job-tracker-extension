@@ -6,14 +6,14 @@ import {
   Toolbar,
   BtnUndo,
   BtnRedo,
-  BtnLink,
-  BtnStyles,
+  // BtnLink,
+  // BtnStyles,
   BtnItalic,
   Separator,
-  HtmlButton,
+  // HtmlButton,
   BtnUnderline,
   createButton,
-  BtnBulletList,
+  // BtnBulletList,
   EditorProvider,
   BtnNumberedList,
   BtnStrikeThrough,
@@ -88,13 +88,13 @@ const TextEditor = ({ value, onChange, placeholder }: TextEditorProps) => {
             style={{
               backgroundColor: '#fefce8', // yellow-50
               color: '#000000',
-              minHeight: '150px',
+              minHeight: '100px',
             }}
             containerProps={{
               style: {
                 overflow: 'auto',
-                minHeight: '150px',
-                maxHeight: '300px',
+                minHeight: '100px',
+                maxHeight: '180px',
                 border: '1px solid #e2e8f0',
                 borderRadius: '0.75rem',
               },
@@ -115,12 +115,12 @@ const TextEditor = ({ value, onChange, placeholder }: TextEditorProps) => {
                 <BtnAlignRight />
                 <Separator />
                 <BtnNumberedList />
-                <BtnBulletList />
+                {/* <BtnBulletList />
                 <Separator />
                 <BtnLink />
                 <HtmlButton />
                 <Separator />
-                <BtnStyles />
+                <BtnStyles /> */}
               </Toolbar>
             </div>
           </Editor>

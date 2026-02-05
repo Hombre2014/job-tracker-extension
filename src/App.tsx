@@ -461,29 +461,19 @@ function App() {
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="white"
-                strokeWidth="2.5"
-                viewBox="0 0 24 24"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 2a7 7 0 1 0 10 10" />
-                <path d="M12 8a4 4 0 1 1-4 4" />
-              </svg>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center">
+              <img
+                src="/images/icons/icon-48.png"
+                alt="Job Tracker Helper"
+                className="w-9 h-9 rounded-lg"
+              />
             </div>
             <div>
               <h1 className="text-[17px] font-bold text-slate-800 tracking-tight leading-none">
-                Job Tracker
+                Job Tracker Helper
               </h1>
               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-1 block">
-                Extension Copilot
+                Your automated job application assistant
               </span>
             </div>
           </div>
@@ -504,7 +494,7 @@ function App() {
         </header>
 
         {/* Dynamic Content */}
-        <main className="flex-1 overflow-visible">
+        <main className="flex-1 overflow-hidden mb-2.5">
           {status === 'scanning' ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -556,9 +546,9 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5 overflow-visible">
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-2 overflow-visible">
               {/* Job Form */}
-              <div className="space-y-4 overflow-visible">
+              <div className="space-y-2 overflow-visible">
                 <div className="flex gap-4 overflow-visible">
                   <div className="flex-1 space-y-1.5 overflow-visible">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
@@ -631,7 +621,7 @@ function App() {
                         if (boards.length > 1) setShowBoardMenu(!showBoardMenu);
                       }}
                       className={cn(
-                        'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 flex items-center justify-between transition-all',
+                        'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-1 text-sm font-bold text-slate-700 flex items-center justify-between transition-all',
                         boards.length > 1
                           ? 'hover:border-slate-300'
                           : 'cursor-default opacity-80',
@@ -732,7 +722,7 @@ function App() {
                 <button
                   onClick={() => handleSave()}
                   disabled={isSaving || !selectedBoardId}
-                  className="w-full max-w-md py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
+                  className="w-full max-w-md py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 text-[13px] disabled:opacity-50"
                 >
                   <Zap size={16} fill="white" strokeWidth={0} />
                   Quick Save
@@ -742,7 +732,7 @@ function App() {
           )}
         </main>
 
-        <footer className="pt-4 border-t border-slate-50 flex justify-between items-center">
+        <footer className="border-t border-slate-50 flex justify-between items-center">
           <button
             onClick={() => syncToken()}
             className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight hover:text-blue-600 transition-colors"
@@ -761,7 +751,7 @@ function App() {
                 : 'Sync with Web App'}
             </span>
           </button>
-          <span className="text-[10px] text-slate-300 font-mono">v1.5.0</span>
+          <span className="text-[10px] text-slate-400 font-mono">v1.6.0</span>
         </footer>
       </div>
     </div>
