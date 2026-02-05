@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Job Tracker Extension",
-  "version": "1.5.0",
-  "description": "Scrape job details and save them to your Job Tracker.",
+  "name": "Job Tracker Helper",
+  "version": "1.6.0",
+  "description": "Extract job posts details like title, company, location, salary, and description in to your Job Tracker app.",
   "action": {
-    "default_popup": "index.html"
+    "default_popup": "index.html",
+    "default_icon": {
+      "32": "images/icons/icon-32.png",
+      "48": "images/icons/icon-48.png"
+    }
   },
   "background": {
     "service_worker": "src/background/index.ts",
@@ -46,8 +50,8 @@
     }
   ],
   "icons": {
-    "16": "public/vite.svg",
-    "48": "public/vite.svg",
-    "128": "public/vite.svg"
+    "32": "images/icons/icon-32.png",
+    "48": "images/icons/icon-48.png",
+    "128": "images/icons/icon-128.png"
   }
 }

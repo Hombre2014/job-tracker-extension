@@ -156,7 +156,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl max-h-56 overflow-y-auto">
+        <div className="absolute z-[100] mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl max-h-56 overflow-y-auto">
           <ul className="py-1">
             {suggestions.map((company, index) => (
               <li key={`${company.domain}-${index}`}>
@@ -197,7 +197,7 @@ export const CompanyAutocomplete = (props: CompanyAutocompleteProps) => {
         value.length >= 2 &&
         suggestions.length === 0 &&
         !error && (
-          <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl">
+          <div className="absolute z-[100] mt-1 w-full rounded-xl border border-slate-100 bg-white shadow-xl">
             <div className="px-3 py-4 text-center text-xs text-slate-400 font-medium">
               No companies found
             </div>
