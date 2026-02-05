@@ -68,69 +68,65 @@ const findSalaryInText = (text: string): string => {
     )
       return true;
 
-    // Exclude promotional phrases (must contain the promotional text AND a zero amount)
+    // Exclude promotional phrases
     const promotionalPatterns = [
-      /try\s+premium.*[€$£]\s?0/i, // "Try Premium for €0"
-      /premium\s+for\s+[€$£]\s?0/i, // "Premium for €0"
-      /free\s+trial.*[€$£]\s?0/i, // "Free trial for €0"
-      /sign\s+up.*[€$£]\s?0/i, // "Sign up for €0"
+      /try\s+premium.*[€$£]\s?0/i,
+      /premium\s+for\s+[€$£]\s?0/i,
+      /free\s+trial.*[€$£]\s?0/i,
+      /sign\s+up.*[€$£]\s?0/i,
     ];
 
     return promotionalPatterns.some((pattern) => pattern.test(salary));
   };
 
-  // Pattern 1: Look for "Salary:" or "Compensation:" followed by salary info
-  // Examples: "Salary: up to €130,000 gross/year", "Compensation: $100k - $150k"
-  const salaryPrefixRegex =
-    /(?:salary|compensation|pay|rate|remuneration|package)\s*:?\s*([^\n]+)/gi;
+  // Pattern 1: Look for "Salary:" or "Compensation:" prefix
+  const salaryPrefixRegex = /(?:salary|compensation)\s*:?\s*([^\n]+)/gi;
   const prefixMatch = salaryPrefixRegex.exec(text);
   if (prefixMatch && prefixMatch[1]) {
     const potentialSalary = prefixMatch[1];
-    // Check if it contains currency
     if (potentialSalary.match(/[€$£]/)) {
       let salaryText = potentialSalary.trim();
-      // Clean up - remove any trailing text that's not part of salary
       salaryText = salaryText
         .split(
           /\||·|•|Remote|Full-time|Part-time|Contract|We are|We're|Join|The /i,
         )[0]
         .trim();
 
-      // Check if it's promotional before returning
       if (!isPromotionalSalary(salaryText)) {
         return salaryText;
       }
     }
   }
 
-  // Pattern 2: Look for salary ranges WITH CONTEXT (must have salary-related keywords nearby)
-  // Examples: "salary €40K/yr - €55K/yr", "pay: $100,000 - $150,000"
-  const contextualRangeRegex =
-    /(?:salary|compensation|pay|rate|remuneration|package|earning|wage).{0,50}?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
-  const contextualRangeMatch = contextualRangeRegex.exec(text);
-  if (contextualRangeMatch) {
-    const salaryText =
-      `${contextualRangeMatch[1]} - ${contextualRangeMatch[2]}`.trim();
+  // Pattern 2: Look for salary ranges
+  const rangeRegex =
+    /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
+  const rangeMatch = rangeRegex.exec(text);
+  if (rangeMatch) {
+    const salaryText = rangeMatch[0].trim();
     if (!isPromotionalSalary(salaryText)) {
       return salaryText;
     }
   }
 
-  // Pattern 3: Look for single salary values WITH CONTEXT
-  // Examples: "salary up to €130,000 gross/year", "pay: $100k/yr"
-  const contextualSingleRegex =
-    /(?:salary|compensation|pay|rate|remuneration|package|earning|wage).{0,50}?(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
-  const contextualSingleMatch = contextualSingleRegex.exec(text);
-  if (contextualSingleMatch) {
-    const salaryText = contextualSingleMatch[0]
-      .replace(
-        /(?:salary|compensation|pay|rate|remuneration|package|earning|wage)\s*:?\s*/i,
-        '',
-      )
-      .trim();
+  // Pattern 3: Look for single salary values
+  const singleSalaryRegex =
+    /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
+  const singleMatch = singleSalaryRegex.exec(text);
+  if (singleMatch) {
+    const salaryText = singleMatch[0].trim();
     if (!isPromotionalSalary(salaryText)) {
       return salaryText;
     }
+  }
+
+  // Pattern 4: NEW - SEPARATE pattern for currency CODES (EUR, USD, GBP, CHF)
+  // This handles cases like "Salary: Up to 70,000 EUR"
+  const currencyCodeRegex =
+    /(?:salary|compensation|pay|rate)\s*:?\s*((?:up to\s+)?\d{1,3}(?:[.,]\d{3})*\s*(?:EUR|USD|GBP|CHF)\b(?:\s*(?:per|\/)\s*(?:year|month|hour|yr|mo|hr))?)/i;
+  const codeMatch = currencyCodeRegex.exec(text);
+  if (codeMatch) {
+    return codeMatch[1].trim();
   }
 
   return '';
@@ -236,8 +232,6 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     '.jobs-unified-top-card__job-title',
     'h2.t-24', // LinkedIn often uses h2 for titles in collections view
     'h1.t-24',
-    'h1',
-    'h2',
   ]);
 
   const company = getText([
@@ -278,7 +272,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   // Salary capture - LinkedIn shows salary in multiple possible locations
   let salary = '';
 
-  // Try to find salary in parent containers that might have the complete range
+  // Try to find salary in parent containers
   const salaryContainerSelectors = [
     '.job-details-jobs-unified-top-card__job-insight-view-model-secondary',
     '.job-details-jobs-unified-top-card__job-insight--container',
@@ -293,12 +287,8 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
         (text.includes('$') || text.includes('£') || text.includes('€')) &&
         text.match(/\d+/)
       ) {
-        // Use findSalaryInText to extract just the salary part
-        const found = findSalaryInText(text);
-        if (found) {
-          salary = found;
-          break;
-        }
+        salary = findSalaryInText(text);
+        if (salary) break;
       }
     }
   }
@@ -306,6 +296,8 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   // Try specific compensation-related selectors
   if (!salary) {
     const salarySelectors = [
+      '.tvm__text.tvm__text--low-emphasis',
+      '.artdeco-button .tvm__text',
       '.job-details-jobs-unified-top-card__job-insight--highlight',
       '.job-details-jobs-unified-top-card__job-insight',
       '.jobs-unified-top-card__job-insight--highlight',
@@ -318,27 +310,12 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
       const elements = container.querySelectorAll(selector);
       for (const el of elements) {
         const text = el.textContent?.trim() || '';
-        // Check if text contains currency and typical salary indicators
         if (
           (text.includes('$') || text.includes('£') || text.includes('€')) &&
           text.match(/\d+/)
         ) {
-          // Check if parent has more complete info
-          const parentText = el.parentElement?.textContent?.trim() || '';
-          if (
-            parentText.includes('-') ||
-            parentText.includes('–') ||
-            parentText.includes('—')
-          ) {
-            // Parent might have the full range, use findSalaryInText
-            const found = findSalaryInText(parentText);
-            if (found) {
-              salary = found;
-              break;
-            }
-          }
-          salary = text;
-          break;
+          salary = findSalaryInText(text);
+          if (salary) break;
         }
       }
       if (salary) break;
@@ -353,8 +330,8 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     for (const el of insightEls) {
       const text = el.textContent?.trim() || '';
       if (text.includes('$') || text.includes('£') || text.includes('€')) {
-        salary = text;
-        break;
+        salary = findSalaryInText(text);
+        if (salary) break;
       }
     }
   }
@@ -424,20 +401,26 @@ const scrapeIndeed = (): Partial<ScrapedJobInfo> => {
     document.querySelector('h1.icl-u-xs-mb--xs')?.textContent?.trim() ||
     '';
 
-  // If title contains search query pattern, try to find the actual job title
-  if (title.includes(' jobs in ') || title.includes(' job in ')) {
-    // Try to find the actual job title in the card header
-    const jobCard = document.querySelector(
-      '.jobsearch-JobComponent-description',
-    );
-    if (jobCard) {
-      const headerTitle =
-        document
-          .querySelector('h2.jobTitle span[title]')
-          ?.getAttribute('title') ||
-        document.querySelector('h2.jobTitle')?.textContent?.trim();
-      if (headerTitle && !headerTitle.includes(' jobs in ')) {
-        title = headerTitle;
+  // Clean up title - remove common suffixes that aren't part of the actual job title
+  if (title) {
+    // Remove "- job post" suffix
+    title = title.replace(/\s*-\s*job post\s*$/i, '').trim();
+
+    // Remove search query patterns like "jobs in [location]"
+    if (title.includes(' jobs in ') || title.includes(' job in ')) {
+      // Try to find the actual job title in the card header
+      const jobCard = document.querySelector(
+        '.jobsearch-JobComponent-description',
+      );
+      if (jobCard) {
+        const headerTitle =
+          document
+            .querySelector('h2.jobTitle span[title]')
+            ?.getAttribute('title') ||
+          document.querySelector('h2.jobTitle')?.textContent?.trim();
+        if (headerTitle && !headerTitle.includes(' jobs in ')) {
+          title = headerTitle.replace(/\s*-\s*job post\s*$/i, '').trim();
+        }
       }
     }
   }
