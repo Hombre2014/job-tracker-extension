@@ -751,7 +751,7 @@ function App() {
                 : 'Sync with Web App'}
             </span>
           </button>
-          <span className="text-[10px] text-slate-400 font-mono">v1.6.0</span>
+          <span className="text-[10px] text-slate-400 font-mono">v1.6.1</span>
         </footer>
       </div>
     </div>

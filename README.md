@@ -8,6 +8,23 @@
 
 ![Job Tracker Helper Extension](./public/images/screenshots/main-popup.png)
 
+## ⚠️ Important Disclaimer
+
+**Terms of Service Compliance:**
+
+This extension is designed for **personal use only** to help you organize your job search. When you use this extension to extract job posting data from LinkedIn, Indeed, or other job sites, you are responsible for complying with those platforms' Terms of Service.
+
+Key Points:
+
+- ✅ **User-Initiated Only**: The extension only works when YOU manually visit a job page and click to save
+- ✅ **Personal Use**: Data is saved to YOUR personal Job Tracker account only
+- ❌ **No Commercial Use**: Do not use this to build competing services or aggregate data for sale
+- ❌ **No Automated Scraping**: This is not a bot or automated crawler
+
+While we believe user-initiated extraction of publicly visible data for personal organization falls within fair use, LinkedIn and Indeed have Terms of Service that may restrict data extraction. By using this extension, you acknowledge your responsibility to comply with all applicable terms and policies.
+
+For more details, see our [Privacy Policy](./PRIVACY_POLICY.md).
+
 ## 🎯 Overview
 
 Job Tracker Helper is a browser extension that eliminates the tedious task of manually copying job information. Simply click the extension icon while viewing any LinkedIn or Indeed job posting, and all details are instantly saved to your Job Tracker application.
@@ -49,11 +66,11 @@ Job Tracker Helper is a browser extension that eliminates the tedious task of ma
 ![Main Popup](./public/images/screenshots/main-popup.png)
 _The extension popup showing scraped job data ready to save_
 
-![LinkedIn Integration](./public/images/screenshots/linkedin-demo.gif)
+![LinkedIn Integration](./public/images/screenshots/linkedin-example.png)
 _Extracting job details from LinkedIn_
 
-![Indeed Integration](./public/images/screenshots/indeed-demo.gif)
-_Capturing salary and job info from Indeed_
+![Indeed Integration](./public/images/screenshots/indeed-example.png)
+_Extracting job details from Indeed_
 
 ## 🚀 Quick Start
 
@@ -168,7 +185,7 @@ job-tracker-extension/
 - **No External Servers**: Data goes directly from your browser to Job Tracker
 - **No Tracking**: We don't collect usage data or analytics
 - **Secure Origins**: Strict origin validation prevents unauthorized access
-- **Local Storage**: Draft jobs stored locally in your browser
+- **Local Storage Only**: Job data and drafts are stored locally in your browser. We do not collect, track, or transmit user data to external servers except when you explicitly save jobs to your Job Tracker account.
 - **Open Source**: Code is transparent and auditable
 
 ## 🎉 What's New in v1.6.0
