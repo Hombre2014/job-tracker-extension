@@ -3,6 +3,17 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-02-11
+
+### Changed
+
+- Updated `.env.example` to use placeholder values instead of concrete URLs
+- Improved documentation in `docs/FRONTEND_INTEGRATION.md`
+
+### Notes
+
+First official release version after internal testing of v1.6.1. Ready for publishing on Chrome Web Store
+
 ## [1.6.1] - 2026-02-06
 
 ### Documentation
@@ -136,7 +147,7 @@ Update the documentation and the README file and make it ready for publish.
   - Respects Chrome messaging API contract (one response per message)
   - File: `src/content/index.ts`
 
-### Changed
+### Changed - 2026-02-04
 
 - **Manifest Content Script Configuration**
   - Changed from wildcard `http://localhost/*` to specific ports
@@ -144,7 +155,7 @@ Update the documentation and the README file and make it ready for publish.
   - Ensures content script loads on development environments
   - File: `manifest.json`
 
-### Documentation
+### Documentation Improvements
 
 - **Frontend Integration Guide Improvements**
   - Updated `ExtensionMessage` interface documentation to mark `storageKey` as optional
@@ -521,6 +532,7 @@ Update the documentation and the README file and make it ready for publish.
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.4.3...v1.5.0

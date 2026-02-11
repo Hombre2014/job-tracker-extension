@@ -1,8 +1,8 @@
 # Job Tracker Helper
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/Hombre2014/job-tracker-extension)
+[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg)](https://github.com/Hombre2014/job-tracker-extension)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](./LICENSE)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-brightgreen.svg)](#) <!-- TODO: Add actual store link -->
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-brightgreen.svg)](https://chrome.google.com/webstore/detail/glgdiphhpjibhpicdejajcpenjppoblg)
 
 > Streamline your job search by automatically extracting job details from LinkedIn and Indeed with a single click.
 
@@ -76,13 +76,13 @@ _Extracting job details from Indeed_
 
 ### For Users
 
-1. **Install from Chrome Web Store** <!-- TODO: Add link after publishing -->
-   - Visit the Chrome Web Store listing
+1. **Install from Chrome Web Store**
+   - Visit the Chrome Web Store listing [Job Tracker Helper](https://chrome.google.com/webstore/detail/glgdiphhpjibhpicdejajcpenjppoblg)
    - Click "Add to Chrome"
    - Accept permissions
 
 2. **Set Up Job Tracker App**
-   - Create an account at [Job Tracker](https://online-job-trackr.vercel.app) <!-- Update with actual URL -->
+   - Create an account at [Job Tracker](https://online-job-trackr.vercel.app)
    - Create your first job board
 
 3. **Start Tracking Jobs**
@@ -188,7 +188,7 @@ job-tracker-extension/
 - **Local Storage Only**: Job data and drafts are stored locally in your browser. We do not collect, track, or transmit user data to external servers except when you explicitly save jobs to your Job Tracker account.
 - **Open Source**: Code is transparent and auditable
 
-## 🎉 What's New in v1.6.0
+## 🎉 What's New in v1.6.2
 
 ### Security Enhancements
 
@@ -215,7 +215,7 @@ See [CHANGELOG.md](./docs/CHANGELOG.md) for complete version history.
 - [Job Tracker Frontend](https://github.com/Hombre2014/job-tracker-frontend)
 - [Job Tracker Backend](https://github.com/Hombre2014/job-tracker-backend)
 
-## Authors
+## Author
 
 👤 **Yuriy Chamkoriyski**
 
