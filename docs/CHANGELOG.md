@@ -5,9 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.6.2] - 2026-02-11
 
-### What's New in v1.6.2
+### Changed
 
-Update the documentation and the .env.example file. First official release version after internal testing of v1.6.1. Ready for publishing on Chrome Web Store.
+- Updated `.env.example` to use placeholder values instead of concrete URLs
+- Improved documentation in `docs/FRONTEND_INTEGRATION.md`
+
+### Notes
+
+First official release version after internal testing of v1.6.1. Ready for publishing on Chrome Web Store
 
 ## [1.6.1] - 2026-02-06
 
@@ -142,7 +147,7 @@ Update the documentation and the README file and make it ready for publish.
   - Respects Chrome messaging API contract (one response per message)
   - File: `src/content/index.ts`
 
-### Changed
+### Changed - 2026-02-04
 
 - **Manifest Content Script Configuration**
   - Changed from wildcard `http://localhost/*` to specific ports
