@@ -81,7 +81,7 @@ Transform your job search from tedious to effortless. Install Job Tracker Helper
 
 ### Version Information
 
-**Current Version**: 1.6.1
+**Current Version**: 1.6.2
 
 **Recent Updates:**
 
