@@ -83,7 +83,7 @@ Transform your job search from tedious to effortless. Install Job Tracker Helper
 
 **Current Version**: 1.6.3
 
-See [CHANGELOG.md](./docs/CHANGELOG.md) for complete version history.
+See [CHANGELOG.md](./CHANGELOG.md) for complete version history.
 
 ## Store Listing Assets
 
