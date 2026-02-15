@@ -236,12 +236,26 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           );
         }
 
-        // Check if we're in development mode (frontend tab is on localhost)
-        const isDevMode = frontendTabs.some((tab) => {
-          const url = tab.url || '';
-          return url.includes('localhost:') || url.includes('127.0.0.1:');
-        });
-        console.log('Background: Dev mode detected:', isDevMode);
+        // Determine dev mode based on the target tab we'll use/create
+        // If we have existing tabs, check the first one; otherwise default to production
+        let isDevMode = false;
+        if (frontendTabs.length > 0) {
+          const targetUrl = frontendTabs[0].url || '';
+          isDevMode =
+            targetUrl.includes('localhost:') ||
+            targetUrl.includes('127.0.0.1:');
+          console.log(
+            'Background: Dev mode detected for target tab:',
+            isDevMode,
+            'URL:',
+            targetUrl,
+          );
+        } else {
+          // No existing tabs - default to production mode
+          console.log(
+            'Background: No existing tabs - defaulting to production mode',
+          );
+        }
 
         if (frontendTabs.length > 0 && frontendTabs[0].id) {
           // Found existing tab - send message to it
@@ -311,8 +325,8 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       })
       .catch((error) => {
         console.error('Background: Tab query failed:', error);
-        // Default to dev mode if query fails (safer for testing)
-        openNewTabWithParams(data, true);
+        // Default to production mode if query fails
+        openNewTabWithParams(data, false);
         sendResponse({ success: true, method: 'error-fallback' });
       });
 
