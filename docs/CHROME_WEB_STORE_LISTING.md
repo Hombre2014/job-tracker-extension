@@ -81,16 +81,9 @@ Transform your job search from tedious to effortless. Install Job Tracker Helper
 
 ### Version Information
 
-**Current Version**: 1.6.2
+**Current Version**: 1.6.3
 
-**Recent Updates:**
-
-- Enhanced security with strict origin validation
-- Smart tab management preventing duplicate tabs
-- Improved salary detection including currency codes (EUR, USD, GBP, CHF)
-- Fixed board selection to respect user choices
-- Better Indeed title extraction
-- Reduced promotional text in salary fields
+See [CHANGELOG.md](./docs/CHANGELOG.md) for complete version history.
 
 ## Store Listing Assets
 

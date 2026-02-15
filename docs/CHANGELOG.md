@@ -3,6 +3,18 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2026-02-15
+
+### Fixed
+
+- **Tab Reuse Dev Mode Detection (Vivaldi Browser)**
+  - Fixed incorrect dev mode detection when multiple frontend tabs are open
+  - Previously checked if ANY frontend tab was on localhost, causing production tabs to incorrectly navigate to localhost URLs
+  - Now checks only the specific tab being reused to determine correct URL
+  - Prevents production tabs from being navigated to development URLs in browsers like Vivaldi with many open tabs
+  - Changed error fallback to default to production mode instead of dev mode
+  - File: `src/background/index.ts`
+
 ## [1.6.2] - 2026-02-11
 
 ### Changed
@@ -36,7 +48,7 @@ Update the documentation and the README file and make it ready for publish.
   - Prevents malicious scripts from injecting fake acknowledgments
   - File: `src/content/index.ts`
 
-### Fixed
+### Fixed - 2026-02-04
 
 - **Tab Reuse Consistency**
   - Fixed inconsistent `autoSave` parameter handling between tab reuse and new tab paths
@@ -113,7 +125,7 @@ Update the documentation and the README file and make it ready for publish.
   - Helps developers diagnose issues during development and testing
   - File: `src/background/index.ts`
 
-### Fixed - 2026-02-04
+### Fixed on 2026-02-04
 
 - **Development Environment Support**
   - Added localhost:3001 to allowed origins for external messages
@@ -532,6 +544,7 @@ Update the documentation and the README file and make it ready for publish.
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.5.0...v1.6.0
