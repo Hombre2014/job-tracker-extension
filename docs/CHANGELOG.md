@@ -3,9 +3,38 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.3] - 2026-02-15
+## [1.6.4] - 2026-02-16
 
 ### Fixed
+
+- **LinkedIn Salary Capture - HTML Tags and Boundary Issues** ⚠️ CRITICAL BUG FIX
+  - **Issue #1**: Salary field was being populated with HTML markup instead of clean text
+    - **Example**: `<!----></strong></span><span class="white-space-pre"> </span>€80k - €100k + equity<!---->`
+  - **Issue #2**: Salary capturing too much text, including following section headers
+    - **Example**: `€80k - €100k + equityLocation:` - included "Location:" label
+  - **Root Causes**:
+    - `findSalaryInText` was searching HTML markup instead of plain text
+    - Description was retrieved as `innerHTML` (with HTML tags)
+    - Regex pattern matched "Salary:" but captured everything until newline
+    - Split pattern didn't include common section headers like "Location:", "About", "Requirements"
+    - Description search was also limited to first 500 characters
+  - **Solutions**:
+    - Extract plain text from HTML before searching for salary patterns
+    - Create temporary DOM element and use `textContent` to strip all HTML tags
+    - Added boundary detection for common section headers: "Location:", "About", "Requirements", "Experience", "The Company", "Apply"
+    - Increased search range from 500 to 1500 characters with full text fallback
+    - Now stops at section boundaries to capture only salary text
+  - **Impact**:
+    - Fixes corrupted salary data with HTML tags
+    - Prevents capturing text from adjacent sections
+    - Clean output: "€80k - €100k + equity" (no HTML, no extra labels)
+    - Significantly improves salary capture accuracy for LinkedIn job postings
+    - Ensures clean, readable salary information in job applications
+  - File: `src/content/scrapers.ts`
+
+## [1.6.3] - 2026-02-15
+
+### Fixed - 2026-02-15
 
 - **Tab Reuse Dev Mode Detection (Vivaldi Browser)**
   - Fixed incorrect dev mode detection when multiple frontend tabs are open
@@ -544,6 +573,7 @@ Update the documentation and the README file and make it ready for publish.
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.4]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.3...v1.6.4
 [1.6.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.0...v1.6.1

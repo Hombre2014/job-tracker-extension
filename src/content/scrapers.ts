@@ -86,9 +86,10 @@ const findSalaryInText = (text: string): string => {
     const potentialSalary = prefixMatch[1];
     if (potentialSalary.match(/[€$£]/)) {
       let salaryText = potentialSalary.trim();
+      // Split on common delimiters and labels that shouldn't be part of salary
       salaryText = salaryText
         .split(
-          /\||·|•|Remote|Full-time|Part-time|Contract|We are|We're|Join|The /i,
+          /\||·|•|Remote|Full-time|Part-time|Contract|Location:|About|Requirements|Experience|We are|We're|Join|The Company|Apply/i,
         )[0]
         .trim();
 
@@ -371,12 +372,26 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     .replace(/^<[^>]*>About the job<\/[^>]*>/i, '') // Remove 'About the job' header
     .trim();
 
-  // If salary still not found, try extracting from description (first 500 chars)
+  // If salary still not found, try extracting from description
+  // IMPORTANT: Extract plain text from HTML before searching for salary patterns
   if (!salary && description) {
-    const descSnippet = description.substring(0, 500);
+    // Create a temporary element to extract text content from HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = description;
+    const plainTextDescription = tempDiv.textContent || tempDiv.innerText || '';
+
+    // Search plain text (not HTML) for salary patterns
+    // Try first 1500 characters, then full text if needed
+    const descSnippet = plainTextDescription.substring(0, 1500);
     const foundInDesc = findSalaryInText(descSnippet);
     if (foundInDesc) {
       salary = foundInDesc;
+    } else {
+      // If still not found, search the entire plain text description as final fallback
+      const foundInFullDesc = findSalaryInText(plainTextDescription);
+      if (foundInFullDesc) {
+        salary = foundInFullDesc;
+      }
     }
   }
 

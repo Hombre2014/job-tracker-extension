@@ -1,6 +1,6 @@
 # Job Tracker Helper
 
-[![Version](https://img.shields.io/badge/version-1.6.3-blue.svg)](https://github.com/Hombre2014/job-tracker-extension)
+[![Version](https://img.shields.io/badge/version-1.6.4-blue.svg)](https://github.com/Hombre2014/job-tracker-extension)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](./LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-brightgreen.svg)](https://chrome.google.com/webstore/detail/glgdiphhpjibhpicdejajcpenjppoblg)
 
@@ -188,7 +188,7 @@ job-tracker-extension/
 - **Local Storage Only**: Job data and drafts are stored locally in your browser. We do not collect, track, or transmit user data to external servers except when you explicitly save jobs to your Job Tracker account.
 - **Open Source**: Code is transparent and auditable
 
-## 🎉 What's New in v1.6.3?
+## 🎉 What's New in v1.6.4?
 
 See [CHANGELOG.md](./docs/CHANGELOG.md) for complete version history.
 
