@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Job Tracker Helper",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "description": "Extract job posts details like title, company, location, salary, and description in to your Job Tracker app.",
   "action": {
     "default_popup": "index.html",
