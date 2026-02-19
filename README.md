@@ -1,6 +1,6 @@
 # Job Tracker Helper
 
-[![Version](https://img.shields.io/badge/version-1.6.5-blue.svg)](https://github.com/Hombre2014/job-tracker-extension)
+[![Version](https://img.shields.io/badge/version-1.6.6-blue.svg)](https://github.com/Hombre2014/job-tracker-extension)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](./LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-brightgreen.svg)](https://chrome.google.com/webstore/detail/glgdiphhpjibhpicdejajcpenjppoblg)
 

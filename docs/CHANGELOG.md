@@ -3,9 +3,63 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.5] - 2026-02-19
+## [1.6.6] - 2026-02-19
 
 ### Fixed
+
+- **LinkedIn Single Job View Scraping - Post v1.6.5 Regression** ⚠️ CRITICAL BUG FIX
+  - **Issue**: LinkedIn single job view scraping completely broken after v1.6.5 deployment
+    - **Symptoms**: Location, salary, and description all empty; only company name captured
+    - **Root Cause**: LinkedIn changed DOM structure with dynamically generated CSS class names
+      - Class names like `_4d0262ae`, `bab11c20` change between page loads and versions
+      - All CSS class-based selectors became unreliable and returned `null`
+      - Content existed on page but was inaccessible via previous selectors
+  - **Solutions Implemented**:
+    - **Description Extraction**: Added attribute-based selectors resilient to class changes
+      - `div[componentkey*="AboutTheJob"]` - targets description container by component key
+      - `span[data-testid="expandable-text-box"]` - targets content by test ID attribute
+      - These attributes are more stable than dynamically generated class names
+    - **Location Extraction**: Implemented intelligent priority-based fallback chain
+      - **Priority 1**: Standard LinkedIn location line pattern "Location · X ago · Y people clicked"
+      - Searches all `<p>` tags for text with `·` separators + "ago" + "clicked"/"people" keywords
+      - Extracts first part before first `·` separator (e.g., "Germany" from "Germany · 1 day ago · 84 people clicked")
+      - Validates extracted text is not job type terms (full-time, part-time, contract) or standalone "Remote"
+      - **Priority 2**: Falls back to description search for "Location:" label only if standard line not found
+      - Ensures correct location prioritization: standard UI element first, description fallback second
+    - **Job Title Cleanup**: Removes LinkedIn suffix pattern
+      - Strips "| Company Name | LinkedIn" suffix from job titles
+      - Uses string split on `|` separator, takes only first part
+      - Example: "Software Engineer | Quik Hire Staffing | LinkedIn" → "Software Engineer"
+  - **Impact**:
+    - Restored full scraping functionality for LinkedIn single job view
+    - More resilient to LinkedIn's UI changes and dynamic class name generation
+    - Proper location extraction from standard UI position, not description
+    - Clean job titles without platform/company suffix clutter
+    - All fields now captured correctly: title, company, location, description, salary
+  - File: `src/content/scrapers.ts`
+
+### Enhanced
+
+- **Currency Support - Japanese Yen and Chinese Yuan**
+  - Added JPY (Japanese Yen) and CNY (Chinese Yuan) to `CURRENCY_CODE_REGEX`
+  - Added `¥` symbol to all salary extraction patterns (Patterns 1-5)
+  - Updated zero-value salary guard conditions to include `¥` symbol
+  - Now supports 8 currency codes: USD, EUR, GBP, CHF, CAD, AUD, JPY, CNY
+  - Now supports 4 currency symbols: $, £, €, ¥
+  - File: `src/content/scrapers.ts`
+
+### Documentation
+
+- **TESTING_GUIDE.md Improvements**
+  - Fixed hardcoded local path reference (`d:\MEGA\...`) to relative path (`cd job-tracker-extension`)
+  - Changed line number references to function name references for better maintainability
+  - Example: "Line 149" changed to reference `findSalaryInText` function
+  - Improves documentation resilience to code refactoring and line number changes
+  - File: `docs/TESTING_GUIDE.md`
+
+## [1.6.5] - 2026-02-19
+
+### Fixed in v1.6.4
 
 - **LinkedIn Single Job View Scraping** ⚠️ CRITICAL BUG FIX
   - **Issue #1**: Extension failed to capture job details when LinkedIn job was opened directly (single job view) instead of split view
@@ -62,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - All existing salary formats continue to work
   - File: `src/content/scrapers.ts`
 
-### Enhanced
+### Enhanced - 2026-02-16
 
 - **Currency Code Support**: Extended from 4 to 8 currency codes
   - Added: CAD (Canadian Dollar), AUD (Australian Dollar), JPY (Japanese Yen), CNY (Chinese Yuan)
@@ -123,7 +177,7 @@ First official release version after internal testing of v1.6.1. Ready for publi
 
 ## [1.6.1] - 2026-02-06
 
-### Documentation
+### Documentation Updates
 
 Update the documentation and the README file and make it ready for publish.
 
@@ -639,6 +693,7 @@ Update the documentation and the README file and make it ready for publish.
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.6]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.5...v1.6.6
 [1.6.5]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.4...v1.6.5
 [1.6.4]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.3...v1.6.4
 [1.6.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.2...v1.6.3
