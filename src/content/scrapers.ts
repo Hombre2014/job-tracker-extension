@@ -4,6 +4,11 @@
  */
 
 /**
+ * Currency codes supported by salary patterns
+ */
+const CURRENCY_CODE_REGEX = /\b(?:USD|EUR|GBP|CHF|CAD|AUD|JPY|CNY)\b/i;
+
+/**
  * Sanitize HTML to remove XSS vectors while preserving formatting
  */
 const sanitizeHTML = (html: string): string => {
@@ -311,7 +316,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
         (text.includes('$') ||
           text.includes('£') ||
           text.includes('€') ||
-          /\b(?:USD|EUR|GBP|CHF|CAD|AUD)\b/i.test(text)) &&
+          CURRENCY_CODE_REGEX.test(text)) &&
         text.match(/\d+/)
       ) {
         salary = findSalaryInText(text);
@@ -343,7 +348,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
           (text.includes('$') ||
             text.includes('£') ||
             text.includes('€') ||
-            /\b(?:USD|EUR|GBP|CHF|CAD|AUD)\b/i.test(text)) &&
+            CURRENCY_CODE_REGEX.test(text)) &&
           text.match(/\d+/)
         ) {
           salary = findSalaryInText(text);
@@ -365,7 +370,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
         text.includes('$') ||
         text.includes('£') ||
         text.includes('€') ||
-        /\b(?:USD|EUR|GBP|CHF|CAD|AUD)\b/i.test(text)
+        CURRENCY_CODE_REGEX.test(text)
       ) {
         salary = findSalaryInText(text);
         if (salary) break;

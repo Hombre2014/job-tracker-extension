@@ -105,7 +105,7 @@
 ### Step 1: Build the Extension
 
 ```bash
-cd "d:\MEGA\Projects\Job Tracker\Source code\job-tracker-extension"
+cd job-tracker-extension
 npm run build
 ```
 
