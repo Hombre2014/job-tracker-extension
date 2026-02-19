@@ -146,7 +146,7 @@ npm run build
    ```
 
 4. Look for the salary text manually
-5. Check if it matches the regex patterns in [scrapers.ts](src/content/scrapers.ts) lines 82-140
+5. Check if it matches the regex patterns in the `findSalaryInText` function in [scrapers.ts](src/content/scrapers.ts)
 
 ### If Job Title Includes Company Name
 

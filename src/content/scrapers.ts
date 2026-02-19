@@ -65,20 +65,20 @@ const findSalaryInText = (text: string): string => {
   const isPromotionalSalary = (salary: string): boolean => {
     if (!salary) return false;
 
-    // Exclude zero-value salaries (€0, $0, £0, €0/yr, $0.00, etc.)
+    // Exclude zero-value salaries (€0, $0, £0, ¥0, €0/yr, $0.00, etc.)
     if (
       salary.match(
-        /^[€$£]\s?0+(?:[.,]0+)?(?:\s*\/?\s*(?:yr|year|hour|hr|mo|month|per\s+\w+))?$/i,
+        /^[€$£¥]\s?0+(?:[.,]0+)?(?:\s*\/?\s*(?:yr|year|hour|hr|mo|month|per\s+\w+))?$/i,
       )
     )
       return true;
 
     // Exclude promotional phrases
     const promotionalPatterns = [
-      /try\s+premium.*[€$£]\s?0/i,
-      /premium\s+for\s+[€$£]\s?0/i,
-      /free\s+trial.*[€$£]\s?0/i,
-      /sign\s+up.*[€$£]\s?0/i,
+      /try\s+premium.*[€$£¥]\s?0/i,
+      /premium\s+for\s+[€$£¥]\s?0/i,
+      /free\s+trial.*[€$£¥]\s?0/i,
+      /sign\s+up.*[€$£¥]\s?0/i,
     ];
 
     return promotionalPatterns.some((pattern) => pattern.test(salary));
@@ -92,7 +92,7 @@ const findSalaryInText = (text: string): string => {
     const potentialSalary = prefixMatch[1];
     // Check for currency symbols OR currency codes
     if (
-      potentialSalary.match(/[€$£]|\b(?:USD|EUR|GBP|CHF|CAD|AUD|JPY|CNY)\b/i)
+      potentialSalary.match(/[€$£¥]|\b(?:USD|EUR|GBP|CHF|CAD|AUD|JPY|CNY)\b/i)
     ) {
       let salaryText = potentialSalary.trim();
       // Split on common delimiters and labels that shouldn't be part of salary
@@ -109,9 +109,9 @@ const findSalaryInText = (text: string): string => {
   }
 
   // Pattern 2: Look for salary ranges
-  // Supports: €400 daily - €450 daily, $50k/year - $70k/year, etc.
+  // Supports: €400 daily - €450 daily, $50k/year - $70k/year, ¥70,000 - ¥90,000, etc.
   const rangeRegex =
-    /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?)/i;
+    /([€$£¥]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?)\s*[-–—]\s*([€$£¥]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?)/i;
   const rangeMatch = rangeRegex.exec(text);
   if (rangeMatch) {
     const salaryText = rangeMatch[0].trim();
@@ -121,9 +121,9 @@ const findSalaryInText = (text: string): string => {
   }
 
   // Pattern 3: Look for single salary values
-  // Supports: Up to €450 per day, $50k/year, €60,000 yearly, etc.
+  // Supports: Up to €450 per day, $50k/year, €60,000 yearly, ¥50,000 per month, etc.
   const singleSalaryRegex =
-    /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))|(?:per\s+(?:day|week|month|year|hour))|(?:gross\/year)|gross|net)?/i;
+    /(?:up to\s+)?([€$£¥]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))|(?:per\s+(?:day|week|month|year|hour))|(?:gross\/year)|gross|net)?/i;
   const singleMatch = singleSalaryRegex.exec(text);
   if (singleMatch) {
     const salaryText = singleMatch[0].trim();
@@ -316,6 +316,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
         (text.includes('$') ||
           text.includes('£') ||
           text.includes('€') ||
+          text.includes('¥') ||
           CURRENCY_CODE_REGEX.test(text)) &&
         text.match(/\d+/)
       ) {
@@ -348,6 +349,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
           (text.includes('$') ||
             text.includes('£') ||
             text.includes('€') ||
+            text.includes('¥') ||
             CURRENCY_CODE_REGEX.test(text)) &&
           text.match(/\d+/)
         ) {
@@ -370,6 +372,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
         text.includes('$') ||
         text.includes('£') ||
         text.includes('€') ||
+        text.includes('¥') ||
         CURRENCY_CODE_REGEX.test(text)
       ) {
         salary = findSalaryInText(text);
