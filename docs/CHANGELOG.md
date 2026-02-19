@@ -3,9 +3,75 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.4] - 2026-02-16
+## [1.6.5] - 2026-02-19
 
 ### Fixed
+
+- **LinkedIn Single Job View Scraping** ⚠️ CRITICAL BUG FIX
+  - **Issue #1**: Extension failed to capture job details when LinkedIn job was opened directly (single job view) instead of split view
+    - **Symptoms**: Only company name captured, job title duplicated company name, missing location, description, and salary
+    - **Example URL**: `https://www.linkedin.com/jobs/view/4374701324/`
+  - **Issue #2**: Salary and location data embedded in job description instead of top card
+    - LinkedIn's single job view places `<strong>Compensation:</strong>` and `<strong>Location:</strong>` inside description HTML as list items
+    - Previous selectors only searched top card, missing embedded data
+  - **Root Causes**:
+    - DOM selectors optimized for split view layout, not single job view
+    - Title selector missed `h1.t-24.t-bold.inline` class combination used in single view
+    - Company selector missed `a[data-test-app-aware-link]` attribute used in single view
+    - Location and salary often not in top card for single job view
+    - Description selector didn't match `article.jobs-description__container` structure
+  - **Solutions**:
+    - Added single job view selectors:
+      - Title: `h1.t-24.t-bold.inline`, `h1.t-24`
+      - Company: `a[data-test-app-aware-link][href*="/company/"]`
+      - Description: `article.jobs-description__container`
+    - Implemented fallback extraction from description when top card data unavailable:
+      - Extracts location using regex pattern `/(?:location|where)\s*:\s*([^\n<]+)/i`
+      - Already had salary extraction from description (Pattern 1 prefix matching)
+    - Added boundary detection to prevent capturing adjacent sections
+  - **Impact**:
+    - Single job view now captures all fields correctly
+    - Location extracted from description when not in top card: "100% Remote (Global)"
+    - Salary properly captured from description: "USD 0-65 per hour"
+    - Company name no longer duplicated in job title
+    - Maintains backward compatibility with split view
+  - File: `src/content/scrapers.ts`
+
+- **Salary Pattern Enhancement - Time Period Support** 🔧 ENHANCEMENT
+  - **Issue**: Salary patterns didn't capture daily/weekly/monthly/yearly time periods
+    - **Example 1**: `€400 daily - €450 daily` only captured `€400` (truncated)
+    - **Example 2**: `Rate Up to €450 per day` not captured at all
+  - **Previously Supported**: `hour`, `hourly`, `hr`, `year`, `yr`, `month`, `mo`
+  - **Now Added**: `daily`, `day`, `weekly`, `week`, `monthly`, `yearly`
+  - **Solutions**:
+    - **Pattern 1 (Prefix)**: Added `pay` and `rate` keywords alongside `salary` and `compensation`
+      - No colon required: matches "Rate Up to €450 per day"
+      - Currency code support: matches "USD", "EUR", "GBP", "CHF", "CAD", "AUD", "JPY", "CNY"
+    - **Pattern 2 (Symbol Ranges)**: Extended time period support
+      - Now matches: `€400 daily - €450 daily`, `$50-70 per week`, `£30k yearly - £40k yearly`
+    - **Pattern 3 (Single Symbol)**: Extended time period options
+      - Now matches: `Up to €450 per day`, `$60,000 yearly`, `£500 weekly`
+    - **Pattern 4 (Currency Code Single)**: Added all time period variants
+      - Now matches: `Rate 450 EUR per day`, `Compensation 5000 USD monthly`
+    - **Pattern 5 (Currency Code Range)**: Full time period coverage
+      - Now matches: `USD 400-450 daily`, `EUR 50-70 per day`, `CHF 80-100 per week`
+  - **Impact**:
+    - Captures complete salary ranges with daily/weekly/monthly/yearly modifiers
+    - Supports both "per day" and "daily" variations
+    - Recognizes "Rate" without colon as salary indicator
+    - All existing salary formats continue to work
+  - File: `src/content/scrapers.ts`
+
+### Enhanced
+
+- **Currency Code Support**: Extended from 4 to 8 currency codes
+  - Added: CAD (Canadian Dollar), AUD (Australian Dollar), JPY (Japanese Yen), CNY (Chinese Yuan)
+  - Existing: USD, EUR, GBP, CHF
+  - Patterns 1, 4, and 5 now support all 8 currency codes
+
+## [1.6.4] - 2026-02-16
+
+### Fixed - 2026-02-16
 
 - **LinkedIn Salary Capture - HTML Tags and Boundary Issues** ⚠️ CRITICAL BUG FIX
   - **Issue #1**: Salary field was being populated with HTML markup instead of clean text
@@ -573,6 +639,7 @@ Update the documentation and the README file and make it ready for publish.
   - Resolved Tailwind CLI installation issues
   - Fixed TypeScript strict mode warnings
 
+[1.6.5]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.4...v1.6.5
 [1.6.4]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.3...v1.6.4
 [1.6.3]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Hombre2014/job-tracker-extension/compare/v1.6.1...v1.6.2

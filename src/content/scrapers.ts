@@ -80,11 +80,15 @@ const findSalaryInText = (text: string): string => {
   };
 
   // Pattern 1: Look for "Salary:" or "Compensation:" prefix
-  const salaryPrefixRegex = /(?:salary|compensation)\s*:?\s*([^\n]+)/gi;
+  const salaryPrefixRegex =
+    /(?:salary|compensation|pay|rate)\s*:?\s*([^\n]+)/gi;
   const prefixMatch = salaryPrefixRegex.exec(text);
   if (prefixMatch && prefixMatch[1]) {
     const potentialSalary = prefixMatch[1];
-    if (potentialSalary.match(/[€$£]/)) {
+    // Check for currency symbols OR currency codes
+    if (
+      potentialSalary.match(/[€$£]|\b(?:USD|EUR|GBP|CHF|CAD|AUD|JPY|CNY)\b/i)
+    ) {
       let salaryText = potentialSalary.trim();
       // Split on common delimiters and labels that shouldn't be part of salary
       salaryText = salaryText
@@ -100,8 +104,9 @@ const findSalaryInText = (text: string): string => {
   }
 
   // Pattern 2: Look for salary ranges
+  // Supports: €400 daily - €450 daily, $50k/year - $70k/year, etc.
   const rangeRegex =
-    /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/\s?(?:yr|year|hour|hr|mo|month))?)/i;
+    /([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?)\s*[-–—]\s*([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?(?:\s?\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?)/i;
   const rangeMatch = rangeRegex.exec(text);
   if (rangeMatch) {
     const salaryText = rangeMatch[0].trim();
@@ -111,8 +116,9 @@ const findSalaryInText = (text: string): string => {
   }
 
   // Pattern 3: Look for single salary values
+  // Supports: Up to €450 per day, $50k/year, €60,000 yearly, etc.
   const singleSalaryRegex =
-    /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/\s?(?:yr|year|hour|hr|mo|month))|(?:per\s+(?:year|hour|month))|(?:gross\/year)|gross|net)?/i;
+    /(?:up to\s+)?([€$£]\s?\d{1,3}(?:[.,]\d{3})*[kK]?)\s*(?:(?:\/?\s?(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))|(?:per\s+(?:day|week|month|year|hour))|(?:gross\/year)|gross|net)?/i;
   const singleMatch = singleSalaryRegex.exec(text);
   if (singleMatch) {
     const salaryText = singleMatch[0].trim();
@@ -121,13 +127,22 @@ const findSalaryInText = (text: string): string => {
     }
   }
 
-  // Pattern 4: NEW - SEPARATE pattern for currency CODES (EUR, USD, GBP, CHF)
-  // This handles cases like "Salary: Up to 70,000 EUR"
+  // Pattern 4: Currency code with single value (70,000 EUR or EUR 70,000)
+  // Supports: Rate 70,000 EUR per year, Compensation 50000 USD yearly, etc.
   const currencyCodeRegex =
-    /(?:salary|compensation|pay|rate)\s*:?\s*((?:up to\s+)?\d{1,3}(?:[.,]\d{3})*\s*(?:EUR|USD|GBP|CHF)\b(?:\s*(?:per|\/)\s*(?:year|month|hour|yr|mo|hr))?)/i;
+    /(?:salary|compensation|pay|rate)\s*:?\s*((?:up to\s+)?\d{1,3}(?:[.,]\d{3})*\s*(?:EUR|USD|GBP|CHF|CAD|AUD|JPY|CNY)\b(?:\s*(?:per|\/)\s*(?:day|week|month|year|hour|daily|weekly|monthly|yearly|hourly|hr|yr|mo))?)/i;
   const codeMatch = currencyCodeRegex.exec(text);
   if (codeMatch) {
     return codeMatch[1].trim();
+  }
+
+  // Pattern 5: Currency code BEFORE range (USD 0-65 per hour, EUR 50-70 per hour)
+  // Supports: USD 400-450 daily, EUR 50-70 per day, etc.
+  const currencyCodeRangeRegex =
+    /\b(USD|EUR|GBP|CHF|CAD|AUD|JPY|CNY)\s+(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)\s*[-–—]\s*(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)\s*(?:per\s+(?:day|week|month|year|hour)|\/?\s*(?:daily|day|weekly|week|monthly|month|yearly|year|hourly|hour|hr|yr|mo))?/i;
+  const codeRangeMatch = currencyCodeRangeRegex.exec(text);
+  if (codeRangeMatch) {
+    return codeRangeMatch[0].trim();
   }
 
   return '';
@@ -231,8 +246,11 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   const title = getText([
     '.job-details-jobs-unified-top-card__job-title',
     '.jobs-unified-top-card__job-title',
+    'h1.top-card-layout__title', // Single job view
+    'h1.t-24.t-bold.inline', // Single job view - specific class combo
+    'h1.t-24', // Generic single job view
     'h2.t-24', // LinkedIn often uses h2 for titles in collections view
-    'h1.t-24',
+    'h1.topcard__title', // Older LinkedIn layout
   ]);
 
   const company = getText([
@@ -241,6 +259,9 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     '.jobs-unified-top-card__company-name a',
     '.job-details-jobs-unified-top-card__primary-description a:nth-of-type(1)',
     '.topcard__org-name-link',
+    '.top-card-layout__card a.app-aware-link', // Single job view company link
+    'a[data-test-app-aware-link][href*="/company/"]', // Single job view - company link with data attribute
+    'a.topcard__org-name-link',
     'a[href*="/company/"]',
   ]);
 
@@ -248,11 +269,13 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     '.job-details-jobs-unified-top-card__bullet',
     '.jobs-unified-top-card__bullet',
     '.job-details-jobs-unified-top-card__primary-description span:nth-of-type(1)',
-    '.top-card-layout__first-subline span:nth-of-type(1)',
+    '.top-card-layout__first-subline span:nth-of-type(1)', // Single job view
+    '.top-card-layout__second-subline', // Alternative single job view
     '.jobs-unified-top-card__workplace-type',
     '.job-details-jobs-unified-top-card__primary-description',
     '.tvm__text--low-emphasis span:first-child',
     '.job-details-jobs-unified-top-card__primary-description-container span',
+    '.topcard__flavor--bullet', // Older layout
   ]);
 
   let location = locationRaw;
@@ -285,7 +308,10 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     if (element) {
       const text = element.textContent?.trim() || '';
       if (
-        (text.includes('$') || text.includes('£') || text.includes('€')) &&
+        (text.includes('$') ||
+          text.includes('£') ||
+          text.includes('€') ||
+          /\b(?:USD|EUR|GBP|CHF|CAD|AUD)\b/i.test(text)) &&
         text.match(/\d+/)
       ) {
         salary = findSalaryInText(text);
@@ -305,6 +331,8 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
       '.jobs-unified-top-card__job-insight',
       '.compensation__salary',
       '[data-test-id="compensation-range"]',
+      '.top-card-layout__card .mt2', // Single job view insights
+      '.top-card-layout__insight', // Single job view
     ];
 
     for (const selector of salarySelectors) {
@@ -312,7 +340,10 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
       for (const el of elements) {
         const text = el.textContent?.trim() || '';
         if (
-          (text.includes('$') || text.includes('£') || text.includes('€')) &&
+          (text.includes('$') ||
+            text.includes('£') ||
+            text.includes('€') ||
+            /\b(?:USD|EUR|GBP|CHF|CAD|AUD)\b/i.test(text)) &&
           text.match(/\d+/)
         ) {
           salary = findSalaryInText(text);
@@ -330,7 +361,12 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     );
     for (const el of insightEls) {
       const text = el.textContent?.trim() || '';
-      if (text.includes('$') || text.includes('£') || text.includes('€')) {
+      if (
+        text.includes('$') ||
+        text.includes('£') ||
+        text.includes('€') ||
+        /\b(?:USD|EUR|GBP|CHF|CAD|AUD)\b/i.test(text)
+      ) {
         salary = findSalaryInText(text);
         if (salary) break;
       }
@@ -365,6 +401,8 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     '.jobs-description__content',
     '.jobs-box__html-content',
     '.show-more-less-html__markup',
+    '.description__text', // Single job view
+    'article.jobs-description__container', // Single job view - full article
   ]);
 
   // Clean up the HTML description
@@ -391,6 +429,29 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
       const foundInFullDesc = findSalaryInText(plainTextDescription);
       if (foundInFullDesc) {
         salary = foundInFullDesc;
+      }
+    }
+  }
+
+  // If location still not found, try extracting from description
+  // LinkedIn sometimes puts location info inside the job description for single job view
+  if (!location && description) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = description;
+    const plainTextDescription = tempDiv.textContent || tempDiv.innerText || '';
+
+    // Look for "Location:" pattern in description
+    const locationMatch = /(?:location|where)\s*:\s*([^\n<]+)/i.exec(
+      plainTextDescription,
+    );
+    if (locationMatch && locationMatch[1]) {
+      let extractedLocation = locationMatch[1].trim();
+      // Clean up - remove common trailing patterns
+      extractedLocation = extractedLocation
+        .split(/Compensation:|Role:|Salary:|Requirements:|Qualifications:/i)[0]
+        .trim();
+      if (extractedLocation.length > 0 && extractedLocation.length < 100) {
+        location = extractedLocation;
       }
     }
   }
