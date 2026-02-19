@@ -57,9 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improves documentation resilience to code refactoring and line number changes
   - File: `docs/TESTING_GUIDE.md`
 
-## [1.6.5] - 2026-02-19
+## [1.6.5] - 2026-02-16
 
-### Fixed in v1.6.4
+### Fixed in v1.6.5
 
 - **LinkedIn Single Job View Scraping** ⚠️ CRITICAL BUG FIX
   - **Issue #1**: Extension failed to capture job details when LinkedIn job was opened directly (single job view) instead of split view
@@ -116,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - All existing salary formats continue to work
   - File: `src/content/scrapers.ts`
 
-### Enhanced - 2026-02-16
+### Enhanced in v1.6.5
 
 - **Currency Code Support**: Extended from 4 to 8 currency codes
   - Added: CAD (Canadian Dollar), AUD (Australian Dollar), JPY (Japanese Yen), CNY (Chinese Yuan)
@@ -125,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.6.4] - 2026-02-16
 
-### Fixed - 2026-02-16
+### Fixed in v1.6.4
 
 - **LinkedIn Salary Capture - HTML Tags and Boundary Issues** ⚠️ CRITICAL BUG FIX
   - **Issue #1**: Salary field was being populated with HTML markup instead of clean text
