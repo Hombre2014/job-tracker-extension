@@ -132,8 +132,8 @@ const findSalaryInText = (text: string): string => {
     }
   }
 
-  // Pattern 4: Currency code with single value (70,000 EUR or EUR 70,000)
-  // Supports: Rate 70,000 EUR per year, Compensation 50000 USD yearly, etc.
+  // Pattern 4: Value followed by currency code (e.g., "70,000 EUR")
+  // Requires a salary keyword prefix: "Salary: 70,000 EUR", "Rate: 50000 USD/year", etc.
   const currencyCodeRegex =
     /(?:salary|compensation|pay|rate)\s*:?\s*((?:up to\s+)?\d{1,3}(?:[.,]\d{3})*\s*(?:EUR|USD|GBP|CHF|CAD|AUD|JPY|CNY)\b(?:\s*(?:per|\/)\s*(?:day|week|month|year|hour|daily|weekly|monthly|yearly|hourly|hr|yr|mo))?)/i;
   const codeMatch = currencyCodeRegex.exec(text);
