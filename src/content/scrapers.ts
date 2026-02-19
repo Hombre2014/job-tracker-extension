@@ -298,6 +298,40 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     }
   }
 
+  // NEW: Look for the standard location line pattern "Location · X ago · Y people"
+  if (!location) {
+    const allParagraphs = container.querySelectorAll('p');
+    for (const p of allParagraphs) {
+      const text = p.textContent?.trim() || '';
+      // Look for pattern: "Location · time ago · people clicked"
+      if (
+        text.includes('·') &&
+        (text.includes('ago') ||
+          text.includes('day') ||
+          text.includes('hour')) &&
+        (text.includes('clicked') || text.includes('people'))
+      ) {
+        // Extract first part before first ·
+        const parts = text.split('·');
+        if (parts.length >= 2) {
+          const possibleLocation = parts[0].trim();
+          // Validate it's actually a location (not a job title or other text)
+          if (
+            possibleLocation.length > 2 &&
+            possibleLocation.length < 100 &&
+            !possibleLocation.toLowerCase().includes('full-time') &&
+            !possibleLocation.toLowerCase().includes('part-time') &&
+            !possibleLocation.toLowerCase().includes('contract') &&
+            !possibleLocation.toLowerCase().includes('remote') // "Remote" by itself isn't a location
+          ) {
+            location = possibleLocation;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   // Salary capture - LinkedIn shows salary in multiple possible locations
   let salary = '';
 
@@ -404,7 +438,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     return '';
   };
 
-  const descriptionRaw = getHTML([
+  let descriptionRaw = getHTML([
     '#job-details',
     '.jobs-description__content',
     '.jobs-box__html-content',
@@ -412,6 +446,39 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     '.description__text', // Single job view
     'article.jobs-description__container', // Single job view - full article
   ]);
+
+  // NEW: LinkedIn single job view uses different structure
+  if (!descriptionRaw) {
+    // Try the new LinkedIn structure with componentkey attribute
+    const descContainer =
+      document.querySelector('div[componentkey*="AboutTheJob"]') ||
+      document.querySelector('span[data-testid="expandable-text-box"]');
+
+    if (descContainer) {
+      descriptionRaw = descContainer.innerHTML;
+    }
+  }
+
+  // Fallback: Search for any article or section containing "About the job" or job description markers
+  if (!descriptionRaw) {
+    const articles = document.querySelectorAll(
+      'article, section, div[class*="description"]',
+    );
+    for (const article of articles) {
+      const text = article.textContent || '';
+      // Look for job description markers
+      if (
+        text.includes('About the job') ||
+        text.includes('Role Overview') ||
+        text.includes('About The Role') ||
+        (text.includes('Role:') && text.includes('Location:')) ||
+        (text.length > 500 && text.includes('responsibilities'))
+      ) {
+        descriptionRaw = article.innerHTML;
+        break;
+      }
+    }
+  }
 
   // Clean up the HTML description
   const description = sanitizeHTML(descriptionRaw)
@@ -671,6 +738,18 @@ export const getScrapedInfo = (): ScrapedJobInfo => {
     postUrl: window.location.href,
     salary: siteData.salary || ldData?.salary || '',
   };
+
+  // Clean up job title - remove company name and LinkedIn suffix if present
+  if (result.jobTitle && result.company) {
+    // Remove " | CompanyName | LinkedIn" or " | CompanyName" from title
+    const titleParts = result.jobTitle.split('|').map((part) => part.trim());
+    // First part is usually the actual job title
+    if (titleParts.length > 1) {
+      result.jobTitle = titleParts[0];
+    }
+  }
+  // Also remove " | LinkedIn" if it exists
+  result.jobTitle = result.jobTitle.replace(/\s*\|\s*LinkedIn\s*$/i, '').trim();
 
   return result;
 };
