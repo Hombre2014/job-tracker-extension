@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 
 import { cn } from './lib/utils';
-import { config } from './lib/config';
 import TextEditor from './components/TextEditor';
+import { isFrontendTabUrl } from './lib/frontendTabs';
 import { refreshAccessToken, storeTokens } from './lib/auth';
 import { CompanyAutocomplete } from './components/CompanyAutocomplete';
 import {
@@ -87,16 +87,10 @@ function App() {
 
     try {
       const tabs = await chrome.tabs.query({});
-      // Look for localhost or 127.0.0.1 on common ports (HTTP/HTTPS) or production URL
-      const frontendTabs = tabs.filter(
-        (t) =>
-          t.url?.includes('localhost:3001') ||
-          t.url?.includes('localhost:3000') ||
-          t.url?.includes('127.0.0.1:3001') ||
-          t.url?.includes('127.0.0.1:3000') ||
-          t.url?.includes('localhost:5173') || // Vite default fallback
-          (config.frontendUrl &&
-            t.url?.includes(config.frontendUrl.replace(/^https?:\/\//, ''))),
+      // Match the production frontend, or (in a `vite dev` build only) a
+      // local dev server tab - by exact hostname/port/path, not substring.
+      const frontendTabs = tabs.filter((t) =>
+        isFrontendTabUrl(t.url, import.meta.env.DEV),
       );
 
       if (frontendTabs.length > 0) {

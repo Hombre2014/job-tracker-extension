@@ -19,7 +19,13 @@ export default defineConfig({
     // chrome-extension:// origin to read its responses, which otherwise
     // breaks the service worker's own startup (it fetches its bootstrap
     // modules from this server) even once connectivity itself works.
-    cors: true,
+    // Restricted to chrome-extension:// origins specifically - `cors: true`
+    // reflects any Origin header, which would let any website open in the
+    // same browser during dev read this server's responses (source code,
+    // unbundled modules), per Vite's own docs on server.cors.
+    cors: {
+      origin: /^chrome-extension:\/\//,
+    },
   },
   build: {
     rollupOptions: {

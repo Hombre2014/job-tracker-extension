@@ -1,5 +1,7 @@
 // Background service worker for fetching company logos
 
+import { isDevFrontendUrl, isFrontendTabUrl } from '../lib/frontendTabs';
+
 const logoCache = new Map<string, string>();
 
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
@@ -223,23 +225,9 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           tabs.map((t) => t.url),
         );
 
-        const frontendTabs = tabs.filter((tab) => {
-          const url = tab.url || '';
-          if (url.includes('online-job-trackr.vercel.app')) {
-            return true;
-          }
-          if (!isDevBuild) {
-            return false;
-          }
-          return (
-            url.includes('localhost:3000') ||
-            url.includes('localhost:3001') ||
-            url.includes('localhost:5173') ||
-            url.includes('127.0.0.1:3000') ||
-            url.includes('127.0.0.1:3001') ||
-            url.includes('127.0.0.1:5173')
-          );
-        });
+        const frontendTabs = tabs.filter((tab) =>
+          isFrontendTabUrl(tab.url, isDevBuild),
+        );
 
         console.log('Background: Frontend tabs found:', frontendTabs.length);
         if (frontendTabs.length > 0) {
@@ -254,10 +242,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         let isDevMode = false;
         if (frontendTabs.length > 0) {
           const targetUrl = frontendTabs[0].url || '';
-          isDevMode =
-            isDevBuild &&
-            (targetUrl.includes('localhost:') ||
-              targetUrl.includes('127.0.0.1:'));
+          isDevMode = isDevBuild && isDevFrontendUrl(targetUrl);
           console.log(
             'Background: Dev mode detected for target tab:',
             isDevMode,

@@ -522,7 +522,7 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
     // description whenever "location:"/"where:" appeared in unrelated
     // prose with no nearby block boundary).
     tempDiv.innerHTML = description.replace(
-      /<\/(p|li|div|h[1-6])\s*>|<br\s*\/?>/gi,
+      /<\/(p|li|div|section|article|h[1-6])\s*>|<br\b[^>]*>/gi,
       '\n',
     );
     const plainTextDescription = tempDiv.textContent || tempDiv.innerText || '';
