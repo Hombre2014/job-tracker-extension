@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed in v1.6.7
 
+- **`package-lock.json` Still Recorded the Old Version** (Qodo review follow-up)
+  - **Issue**: The version bump to 1.6.7 updated `package.json` and `manifest.json`, but `package-lock.json`'s root and root-package `version` fields still said `1.6.6`, so tooling that derives package identity from the lockfile would report the previous release
+  - **Solution**: Regenerated `package-lock.json` (`npm install --package-lock-only`) so both version fields match
+  - File: `package-lock.json`
+
+- **Vite Dev Server Bound to All Network Interfaces, Not Just Loopback** (CodeRabbit review follow-up)
+  - **Issue**: `vite.config.ts` set `server.host: '::'` intending "dual-stack loopback" - but `::` is IPv6's *unspecified/any* address, not the loopback address (`::1`). On Windows this also implicitly binds the IPv4 any-address, so the dev server was reachable from other devices on the local network, not just this machine. `server.cors` restricting the origin doesn't help, since CORS is a browser-enforced restriction with no effect on a direct (non-browser) TCP client
+  - **Root Cause**: Conflating "listen on both address families" with "loopback-only" - they aren't the same thing; there is no single Vite `host` value that means both
+  - **Solution**: Reverted to `server.host: '127.0.0.1'` (loopback-only, single address family) - already independently verified sufficient for actual connectivity earlier in this same investigation (a fetch to `http://localhost:5173/` was reaching the server and being blocked only by CORS, not failing to connect, while this exact value was active)
+  - **Impact**: The dev server is loopback-only again, matching what's actually needed
+  - Files: `vite.config.ts`, `docs/CHANGELOG.md`
+
+- **Description Fallback Could Promote Ordinary Prose to a Job Location** (Qodo review follow-up)
+  - **Issue**: The block-boundary fix above (line-bounding the "Location:"/"Where:" capture) removed the old unbounded-capture failure mode, but didn't stop the label from matching *mid-sentence* - e.g. "...the office is not in a fixed location: we work remotely most days." would have "we work remotely most days." wrongly captured and used as the job's location, silently overriding more reliable data (`getScrapedInfo()` prioritizes this site-specific extraction over JSON-LD)
+  - **Solution**: Anchored the match to the start of a line (optionally indented): `(?:^|\n)[ \t]*(?:location|where)\s*:`, so it only matches a genuine label on its own line, not the word appearing inside ordinary prose. Verified against the original confirmed-good case, the earlier CodeRabbit-flagged regression, this new case, and a legitimate short "Where:" line - all behave correctly
+  - **Impact**: The description-based location fallback can no longer mistake ordinary prose for a structured label
+  - File: `src/content/scrapers.ts`
+
+- **IPv6 Loopback Dev Tabs Only Partially Supported** (Qodo review follow-up)
+  - **Issue**: `isDevFrontendUrl` recognized `[::1]` as a dev hostname, but a matched `[::1]` tab couldn't actually be used correctly: the content script's token-request trusted-origins list and the background script's external-message allowlist were still `localhost`/`127.0.0.1`-only, and reusing a matched dev tab always navigated it to a hardcoded `http://localhost:3001` regardless of the tab's actual origin - which would silently change origin (and likely drop the session) even for an existing `127.0.0.1` tab, not just an IPv6 one
+  - **Solution**: Added the IPv6-serialized equivalents (`[::1]:3000`/`[::1]:3001`, which is how `window.location.host`/`URL.origin` represent an IPv6 host) to both allowlists, and changed tab-reuse navigation to preserve the actually-matched tab's own origin (via the same `parseUrl` helper `frontendTabs.ts` already uses) instead of a hardcoded one. `manifest.json`'s `host_permissions`, `content_scripts.matches`, and `externally_connectable.matches` also now include bracketed IPv6 entries (`http://[::1]/*`, `http://[::1]:3000/*`, `http://[::1]:3001/*`) - initially held back pending verification, since Chrome's own match-pattern docs don't confirm bracketed-IPv6 support and an invalid entry could break the whole manifest; confirmed valid directly against Chromium's `extensions/common/url_pattern_unittest.cc`, which explicitly tests `http://[2607:f8b0:4005:805::200e]:8888/*` (and the no-port form) parsing successfully. The untested combination (`[::1]` with a wildcard `:*` port) was avoided in favor of the explicit-port form that Chromium's tests do cover
+  - **Impact**: An IPv6 loopback dev tab is now fully supported end to end - recognized for tab matching, automatically gets the content script injected, can sync tokens, and is reused at its own origin instead of being redirected to a different one
+  - Files: `src/content/index.ts`, `src/background/index.ts`, `src/lib/frontendTabs.ts`
+
 - **Quick Save Could Open localhost Instead of the Deployed Production URL**
   - **Issue**: Quick Save could navigate to `http://localhost:3001` instead of `https://online-job-trackr.vercel.app`, even though the extension was installed as a production build
   - **Root Cause**: Dev-mode detection scanned all open tabs for anything matching `localhost:3000/3001/5173` or `127.0.0.1` patterns alongside the production URL, with no regard for whether the extension itself was actually a production or dev build. Any open tab happening to match one of those common ports - including an unrelated local project with no connection to Job Tracker - could get treated as "the frontend" and used to decide whether to target localhost

@@ -7,14 +7,18 @@ import manifest from './manifest.json';
 export default defineConfig({
   plugins: [react(), crx({ manifest })],
   server: {
-    // '::' binds dual-stack (both IPv6 ::1 and IPv4 127.0.0.1). This
-    // machine's resolution of the literal string "localhost" is
-    // inconsistent across different code paths (raw browser navigation vs.
-    // @crxjs/vite-plugin's bundled service-worker HMR proxy, which
+    // This machine's default binding (host omitted) resolved to the IPv6
+    // loopback only (::1), which some code paths couldn't reach. `::` (the
+    // IPv6 *unspecified* address, not the loopback ::1) would fix that, but
+    // it - and the IPv4 0.0.0.0 that Windows implicitly binds alongside it
+    // in dual-stack mode - exposes the dev server to the whole local
+    // network, not just this machine; CORS doesn't help here since it's a
+    // browser-only restriction, not a network-level one. Explicit IPv4
+    // loopback is both loopback-only and already verified sufficient: even
+    // @crxjs/vite-plugin's bundled service-worker HMR proxy (which
     // hardcodes `url.host = "localhost"` internally - see
-    // node_modules/@crxjs/vite-plugin/dist/index.mjs) - binding to only
-    // one address family left some of those paths unable to connect.
-    host: '::',
+    // node_modules/@crxjs/vite-plugin/dist/index.mjs) reaches this fine.
+    host: '127.0.0.1',
     // The dev server's default CORS behavior doesn't permit a
     // chrome-extension:// origin to read its responses, which otherwise
     // breaks the service worker's own startup (it fetches its bootstrap

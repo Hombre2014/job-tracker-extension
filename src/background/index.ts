@@ -1,6 +1,10 @@
 // Background service worker for fetching company logos
 
-import { isDevFrontendUrl, isFrontendTabUrl } from '../lib/frontendTabs';
+import {
+  isDevFrontendUrl,
+  isFrontendTabUrl,
+  parseUrl,
+} from '../lib/frontendTabs';
 
 const logoCache = new Map<string, string>();
 
@@ -115,6 +119,12 @@ chrome.runtime.onMessageExternal.addListener(
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
       'http://127.0.0.1:5173',
+      // URL.origin serializes an IPv6 host with brackets, e.g.
+      // "http://[::1]:3001" - matches the dev hostnames frontendTabs.ts
+      // recognizes.
+      'http://[::1]:3000',
+      'http://[::1]:3001',
+      'http://[::1]:5173',
     ];
 
     const senderOrigin =
@@ -441,9 +451,13 @@ async function sendMessageToTab(
   params.set('autoSave', data.autoSave ? 'true' : 'false');
   params.set('jobDataKey', data.storageKey);
 
-  // Determine target URL
+  // Determine target URL. In dev mode, reuse the actual matched tab's own
+  // origin rather than a hardcoded one - it may be at 127.0.0.1, [::1], or
+  // a non-default port, and navigating it to a *different* origin than the
+  // one it's actually running at is a different origin for
+  // localStorage/cookies, which can silently drop the user's session.
   const frontendUrl = isDevMode
-    ? 'http://localhost:3001'
+    ? (parseUrl(targetTab.url)?.origin ?? 'http://localhost:3001')
     : 'https://online-job-trackr.vercel.app';
 
   // Use the board ID from user's selection

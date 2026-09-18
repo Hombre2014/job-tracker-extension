@@ -529,7 +529,14 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
 
     // Look for "Location:" pattern in description, bounded by the next
     // real line break (from the block-boundary newlines above) or '<'.
-    const locationMatch = /(?:location|where)\s*:\s*([^\n<]+)/i.exec(
+    // Anchored to the start of a line (optionally indented) so this only
+    // matches a genuine "Location:"/"Where:" label on its own line, not
+    // the word appearing mid-sentence in ordinary prose (e.g. "...not in
+    // a fixed location: we work remotely...", which would otherwise let
+    // that trailing prose be captured and override more reliable data
+    // like JSON-LD, since site-specific extraction takes priority in
+    // getScrapedInfo()'s merge).
+    const locationMatch = /(?:^|\n)[ \t]*(?:location|where)\s*:\s*([^\n<]+)/i.exec(
       plainTextDescription,
     );
     if (locationMatch && locationMatch[1]) {

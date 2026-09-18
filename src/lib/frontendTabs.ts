@@ -25,7 +25,7 @@ const DEV_PORTS = new Set(['3000', '3001']);
 // happens to share.
 const APP_PATH_PREFIX = '/home';
 
-function parseUrl(url: string | undefined): URL | null {
+export function parseUrl(url: string | undefined): URL | null {
   if (!url) return null;
   try {
     return new URL(url);
