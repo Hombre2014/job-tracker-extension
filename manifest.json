@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Job Tracker Helper",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "description": "Extract job posts details like title, company, location, salary, and description in to your Job Tracker app.",
   "action": {
     "default_popup": "index.html",
@@ -19,7 +19,9 @@
     "matches": [
       "https://online-job-trackr.vercel.app/*",
       "http://localhost:*/*",
-      "http://127.0.0.1:*/*"
+      "http://127.0.0.1:*/*",
+      "http://[::1]:3000/*",
+      "http://[::1]:3001/*"
     ]
   },
   "host_permissions": [
@@ -29,8 +31,10 @@
     "https://online-job-trackr.vercel.app/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
+    "http://[::1]/*",
     "https://localhost/*",
     "https://127.0.0.1/*",
+    "https://[::1]/*",
     "https://autocomplete.clearbit.com/*",
     "https://www.google.com/*",
     "https://*.gstatic.com/*"
@@ -44,7 +48,9 @@
         "http://localhost:3000/*",
         "http://localhost:3001/*",
         "http://127.0.0.1:3000/*",
-        "http://127.0.0.1:3001/*"
+        "http://127.0.0.1:3001/*",
+        "http://[::1]:3000/*",
+        "http://[::1]:3001/*"
       ],
       "js": ["src/content/index.ts"]
     }

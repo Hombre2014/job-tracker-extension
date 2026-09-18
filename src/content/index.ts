@@ -118,6 +118,11 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           'localhost:3000',
           '127.0.0.1:3001',
           '127.0.0.1:3000',
+          // window.location.host serializes an IPv6 address with brackets,
+          // e.g. "[::1]:3001" - matches the dev hostnames frontendTabs.ts
+          // recognizes.
+          '[::1]:3001',
+          '[::1]:3000',
           'online-job-trackr.vercel.app',
         ];
 

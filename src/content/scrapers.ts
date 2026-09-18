@@ -309,7 +309,10 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
         (text.includes('ago') ||
           text.includes('day') ||
           text.includes('hour')) &&
-        (text.includes('clicked') || text.includes('people'))
+        (text.includes('clicked') ||
+          text.includes('people') ||
+          text.includes('applicant') ||
+          text.includes('viewed'))
       ) {
         // Extract first part before first ·
         const parts = text.split('·');
@@ -512,18 +515,39 @@ const scrapeLinkedIn = (): Partial<ScrapedJobInfo> => {
   // LinkedIn sometimes puts location info inside the job description for single job view
   if (!location && description) {
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = description;
+    // Insert a real line break at each block-level boundary before reading
+    // plain text, so the regex below has an actual boundary to stop at
+    // instead of nothing (textContent alone drops all block structure,
+    // which previously let this capture run away to the end of the whole
+    // description whenever "location:"/"where:" appeared in unrelated
+    // prose with no nearby block boundary).
+    tempDiv.innerHTML = description.replace(
+      /<\/(p|li|div|section|article|h[1-6])\s*>|<br\b[^>]*>/gi,
+      '\n',
+    );
     const plainTextDescription = tempDiv.textContent || tempDiv.innerText || '';
 
-    // Look for "Location:" pattern in description
-    const locationMatch = /(?:location|where)\s*:\s*([^\n<]+)/i.exec(
+    // Look for "Location:" pattern in description, bounded by the next
+    // real line break (from the block-boundary newlines above) or '<'.
+    // Anchored to the start of a line (optionally indented) so this only
+    // matches a genuine "Location:"/"Where:" label on its own line, not
+    // the word appearing mid-sentence in ordinary prose (e.g. "...not in
+    // a fixed location: we work remotely...", which would otherwise let
+    // that trailing prose be captured and override more reliable data
+    // like JSON-LD, since site-specific extraction takes priority in
+    // getScrapedInfo()'s merge).
+    const locationMatch = /(?:^|\n)[ \t]*(?:location|where)\s*:\s*([^\n<]+)/i.exec(
       plainTextDescription,
     );
     if (locationMatch && locationMatch[1]) {
       let extractedLocation = locationMatch[1].trim();
-      // Clean up - remove common trailing patterns
+      // Clean up - remove common trailing patterns (a next label the
+      // description happens to run into on the same line, however it's
+      // phrased) as a secondary safety net alongside the line-break bound.
       extractedLocation = extractedLocation
-        .split(/Compensation:|Role:|Salary:|Requirements:|Qualifications:/i)[0]
+        .split(
+          /Compensation:|Role Overview:|Role:|Salary:|Requirements:|Qualifications:|Responsibilities:|Benefits:/i,
+        )[0]
         .trim();
       if (extractedLocation.length > 0 && extractedLocation.length < 100) {
         location = extractedLocation;
