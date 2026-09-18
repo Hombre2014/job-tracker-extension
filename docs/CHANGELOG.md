@@ -3,6 +3,42 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.7] - 2026-09-18
+
+### Fixed in v1.6.7
+
+- **Quick Save Could Open localhost Instead of the Deployed Production URL**
+  - **Issue**: Quick Save could navigate to `http://localhost:3001` instead of `https://online-job-trackr.vercel.app`, even though the extension was installed as a production build
+  - **Root Cause**: Dev-mode detection scanned all open tabs for anything matching `localhost:3000/3001/5173` or `127.0.0.1` patterns alongside the production URL, with no regard for whether the extension itself was actually a production or dev build. Any open tab happening to match one of those common ports - including an unrelated local project with no connection to Job Tracker - could get treated as "the frontend" and used to decide whether to target localhost
+  - **Solution**: Localhost/127.0.0.1 tab matching and dev-mode detection are now gated behind `import.meta.env.DEV`, Vite's build-time flag - `true` only for a `vite dev` build, always `false` for `vite build` (the build users actually install). A production build now only ever recognizes the real production URL and always targets `https://online-job-trackr.vercel.app`, regardless of what other tabs happen to be open. Local development (`npm run dev`) keeps reusing localhost tabs exactly as before
+  - **Impact**: Quick Save in an installed/production build of the extension can no longer be redirected to localhost by an unrelated open tab
+  - File: `src/background/index.ts`
+
+- **Quick Save Dropped the Job Description When Reusing an Already-Open Job Tracker Tab**
+  - **Issue**: When Quick Save reused an already-open Job Tracker tab (the common case - the tab is usually already open from prior use), no description was transferred to the created job post, even though the popup itself had correctly captured it. This has been true since the tab-reuse code path was first written; it went unnoticed because Quick Save's *other* code path (used when no Job Tracker tab is open yet) has always included the description correctly
+  - **Root Cause**: `sendMessageToTab()` in `src/background/index.ts` (the tab-reuse path) never included `description` (or `columnId`) in the URL it navigated to, unlike `openNewTabWithParams()` (the new-tab path), which has always included both
+  - **Solution**: `sendMessageToTab()` now sets `description` and `columnId`. Since the description is HTML (see `scrapers.ts`) and this URL param is only a preview capped at 1000 characters, both this path and `openNewTabWithParams()` now build that preview through a new `toPlainTextPreview()` helper - a linear, single-pass tag stripper (no regex backtracking, so no risk of hanging this service worker) instead of a raw character slice, which could otherwise cut in the middle of an HTML tag and corrupt everything after it
+  - **Impact**: Quick Save now carries the job description through correctly whether or not a Job Tracker tab was already open
+  - File: `src/background/index.ts`
+
+- **LinkedIn Location Not Captured for Some Listings**
+  - **Issue**: For some listings, no location was captured at all, even though the job's top card clearly showed one (e.g. "Germany · 6 days ago · Over 100 applicants")
+  - **Root Cause**: Two independent bugs in `src/content/scrapers.ts`:
+    1. The top-card "Location · time ago · social proof" pattern matcher only recognized `clicked` or `people` in the third segment - phrasing like "Over 100 **applicants**" matched neither, so the whole line was skipped
+    2. The fallback that searches the job description for a "Location:" mention read the description as plain text with no line breaks preserved between the original HTML's paragraphs/list items, so its capture had no real boundary to stop at and could run to the end of the description - which then failed a length sanity check and was silently discarded rather than used
+  - **Solution**:
+    - Added `applicant` and `viewed` to the accepted third-segment keywords for the top-card pattern
+    - Block-level tags (`</p>`, `</li>`, `</div>`, `</h1>`-`</h6>`, `<br>`) are now converted to real `\n` characters before the description is reduced to plain text, giving the existing capture an actual line boundary to stop at instead of nothing. Also extended the secondary label-splitting list (`Role Overview:`, `Responsibilities:`, `Benefits:`, alongside the existing `Compensation:`/`Role:`/`Salary:`/`Requirements:`/`Qualifications:`) as a same-line safety net
+  - **Impact**: Location now extracts correctly from the top card for this phrasing variant, and the description-based fallback can no longer silently discard a valid value due to unbounded over-capture
+  - File: `src/content/scrapers.ts`
+
+- **`npm run dev` Extension Couldn't Reliably Reach Its Own Vite Dev Server** (dev tooling only, no effect on the published extension)
+  - **Issue**: Loading the extension via `npm run dev` intermittently showed CRXJS's "Cannot connect to the Vite Dev Server" screen, and even once connectivity worked, the service worker could still fail to register with `chrome-extension://` requests to the dev server blocked by CORS
+  - **Root Cause**: Two issues on machines where IPv6/IPv4 resolution for `localhost` is inconsistent (e.g. behind a VPN client): Vite's default binding only listened on one address family, so some code paths (including `@crxjs/vite-plugin`'s bundled service-worker HMR proxy, which hardcodes `url.host = "localhost"` internally) couldn't connect even when the server was running; separately, the dev server didn't send CORS headers permitting a `chrome-extension://` origin to read its responses, which blocks the service worker's own bootstrap module fetches
+  - **Solution**: `vite.config.ts` now sets `server.host: '::'` (dual-stack: both IPv6 `::1` and IPv4 `127.0.0.1`) and `server.cors: true`
+  - **Impact**: `npm run dev` reliably reachable by the loaded extension on machines with this networking quirk; no effect on `npm run build`/production
+  - File: `vite.config.ts`
+
 ## [1.6.6] - 2026-02-19
 
 ### Fixed

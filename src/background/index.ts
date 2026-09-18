@@ -200,6 +200,14 @@ interface SendJobDataParams {
   storageKey: string;
 }
 
+// Only a `vite dev` build should ever treat a localhost/127.0.0.1 tab as a
+// valid Job Tracker target. The production build (what users actually
+// install, whether unpacked or from the Chrome Web Store) must always
+// target the real production URL, regardless of what other tabs happen to
+// be open - a tab matched on hostname/port alone can't tell "the real dev
+// frontend" apart from an unrelated local project on the same common port.
+const isDevBuild = import.meta.env.DEV;
+
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'sendJobData') {
     const data: SendJobDataParams = request.data;
@@ -217,8 +225,13 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
         const frontendTabs = tabs.filter((tab) => {
           const url = tab.url || '';
+          if (url.includes('online-job-trackr.vercel.app')) {
+            return true;
+          }
+          if (!isDevBuild) {
+            return false;
+          }
           return (
-            url.includes('online-job-trackr.vercel.app') ||
             url.includes('localhost:3000') ||
             url.includes('localhost:3001') ||
             url.includes('localhost:5173') ||
@@ -242,8 +255,9 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         if (frontendTabs.length > 0) {
           const targetUrl = frontendTabs[0].url || '';
           isDevMode =
-            targetUrl.includes('localhost:') ||
-            targetUrl.includes('127.0.0.1:');
+            isDevBuild &&
+            (targetUrl.includes('localhost:') ||
+              targetUrl.includes('127.0.0.1:'));
           console.log(
             'Background: Dev mode detected for target tab:',
             isDevMode,
@@ -360,6 +374,61 @@ async function waitForContentScriptReady(
   throw new Error('Content script failed to initialize after retries');
 }
 
+const HTML_ENTITY_REPLACEMENTS: [RegExp, string][] = [
+  [/&nbsp;/g, ' '],
+  [/&amp;/g, '&'],
+  [/&lt;/g, '<'],
+  [/&gt;/g, '>'],
+  [/&quot;/g, '"'],
+  [/&#0?39;/g, "'"],
+];
+
+// Strips HTML tags with a linear character scan (no regex backtracking, so
+// no ReDoS risk in this service worker) rather than a `<[^>]*>`-style
+// regex, which would stop at the first '>' even inside a quoted attribute
+// value (e.g. `<a title="A > B">` -> would leak `B">` into the output).
+function stripHtmlTags(html: string): string {
+  let result = '';
+  let i = 0;
+  let quote: string | null = null;
+  let inTag = false;
+  while (i < html.length) {
+    const ch = html[i];
+    if (inTag) {
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === '>') {
+        inTag = false;
+      }
+    } else if (ch === '<') {
+      inTag = true;
+      result += ' ';
+    } else {
+      result += ch;
+    }
+    i++;
+  }
+  return result;
+}
+
+// The URL query params carry only a short preview of the description - the
+// full, untruncated HTML is always stored via `chrome.storage.local` under
+// `jobDataKey` (see App.tsx's handleSave) and preferred by the frontend when
+// it can reach it. `description` here is HTML (see scrapers.ts), so a fixed
+// character-count slice can land mid-tag and produce malformed markup that
+// breaks rendering. There's no DOM in a service worker to parse it properly,
+// so tags are stripped manually instead, then the plain text is truncated
+// safely.
+function toPlainTextPreview(html: string, maxLength: number): string {
+  let text = stripHtmlTags(html);
+  for (const [pattern, replacement] of HTML_ENTITY_REPLACEMENTS) {
+    text = text.replace(pattern, replacement);
+  }
+  return text.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
 /**
  * Helper: Navigate existing tab to job post URL
  */
@@ -378,10 +447,12 @@ async function sendMessageToTab(
   }
   params.set('title', data.title);
   params.set('location', data.location || '');
+  params.set('description', toPlainTextPreview(data.description || '', 1000));
   params.set('url', data.url || '');
   if (data.salary) {
     params.set('salary', data.salary);
   }
+  params.set('columnId', data.columnId);
   params.set('autoSave', data.autoSave ? 'true' : 'false');
   params.set('jobDataKey', data.storageKey);
 
@@ -422,7 +493,7 @@ function openNewTabWithParams(data: SendJobDataParams, isDevMode: boolean) {
   }
   params.set('title', data.title);
   params.set('location', data.location || '');
-  params.set('description', (data.description || '').slice(0, 1000));
+  params.set('description', toPlainTextPreview(data.description || '', 1000));
   params.set('url', data.url || '');
   if (data.salary) {
     params.set('salary', data.salary);
